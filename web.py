@@ -54,6 +54,33 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def get_redirect_uri():
+    """Dynamically determine the OAuth redirect URI."""
+    portal_cfg = core.get_portal_config()
+    public_url = portal_cfg.get('public_url', '').strip()
+    
+    if public_url:
+        if not public_url.startswith(('http://', 'https://')):
+            public_url = 'http://' + public_url
+            
+        parsed = urllib.parse.urlparse(public_url)
+        scheme = parsed.scheme or 'http'
+        host = parsed.netloc or parsed.path.split('/')[0]
+        
+        # If the user provided a port in public_url, use it. 
+        # Otherwise, default to 5005 which is where the callback server listens.
+        if ':' in host:
+            return f"{scheme}://{host}".rstrip('/')
+        else:
+            return f"{scheme}://{host}:5005"
+    
+    # Fallback to detecting from request
+    # Respect X-Forwarded-Proto for proxies, fallback to request.scheme
+    scheme = request.headers.get('X-Forwarded-Proto', request.scheme)
+    # request.host includes the port, we want to strip it and use 5005
+    host_only = request.host.split(':')[0]
+    return f"{scheme}://{host_only}:5005"
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -78,7 +105,8 @@ def logout():
 @app.route('/start-login')
 def direct_login():
     """Directly start the OAuth flow without opening the panel."""
-    auth_url, port = core.get_oauth_url_only(auto_save=True)
+    redirect_uri = get_redirect_uri()
+    auth_url, port = core.get_oauth_url_only(auto_save=True, redirect_uri=redirect_uri)
     return redirect(auth_url)
 
 @app.route('/')
@@ -119,20 +147,7 @@ def get_accounts():
 @app.route('/d-api/accounts/oauth/start/', methods=['POST'])
 @login_required
 def oauth_start():
-    portal_cfg = core.get_portal_config()
-    public_url = portal_cfg.get('public_url')
-    
-    if public_url:
-        # Use manually configured public URL
-        parsed = urllib.parse.urlparse(public_url)
-        scheme = parsed.scheme or 'http'
-        host_only = parsed.hostname or public_url.split(':')[0]
-        redirect_uri = f"{scheme}://{host_only}:5005"
-    else:
-        # Detect the current domain dynamically from the browser's request
-        host_only = request.host.split(':')[0]
-        redirect_uri = f"http://{host_only}:5005"
-
+    redirect_uri = get_redirect_uri()
     print(f"[*] OAuth Start | Host: {request.host} | Redirect URI: {redirect_uri}")
     auth_url, port = core.get_oauth_url_only(auto_save=True, redirect_uri=redirect_uri)
     return jsonify({'auth_url': auth_url, 'port': port, 'redirect_uri': redirect_uri})
