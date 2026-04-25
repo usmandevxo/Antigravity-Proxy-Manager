@@ -37,10 +37,52 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -e .
 
+# Configuration Wizard
+echo -e "\n${YELLOW}Configuration Wizard${NC}"
+echo -e "--------------------"
+
+read -p "Enter Portal Port [5000]: " PORTAL_PORT
+PORTAL_PORT=${PORTAL_PORT:-5000}
+
+read -p "Enter Admin URL Slug [admin]: " ADMIN_SLUG
+ADMIN_SLUG=${ADMIN_SLUG:-admin}
+
+read -p "Enter Public URL (for OAuth) [http://localhost:$PORTAL_PORT]: " PUBLIC_URL
+PUBLIC_URL=${PUBLIC_URL:-http://localhost:$PORTAL_PORT}
+
+read -p "Enter Admin Username [admin]: " ADMIN_USER
+ADMIN_USER=${ADMIN_USER:-admin}
+
+read -s -p "Enter Admin Password [admin]: " ADMIN_PASS
+echo ""
+ADMIN_PASS=${ADMIN_PASS:-admin}
+
+read -p "Enter Google OAuth Client ID (Optional): " CLIENT_ID
+read -p "Enter Google OAuth Client Secret (Optional): " CLIENT_SECRET
+
 # Create data directory
 mkdir -p data
 
-# Configuration is now hardcoded in the core.py for convenience.
+# Generate config.json
+echo -e "[*] Generating configuration..."
+cat > data/config.json <<EOF
+{
+  "portal": {
+    "port": $PORTAL_PORT,
+    "admin_slug": "$ADMIN_SLUG",
+    "public_url": "$PUBLIC_URL"
+  },
+  "auth": {
+    "username": "$ADMIN_USER",
+    "password": "$ADMIN_PASS"
+  },
+  "oauth": {
+    "client_id": "${CLIENT_ID:-your_google_client_id_here}",
+    "client_secret": "${CLIENT_SECRET:-your_google_client_secret_here}"
+  }
+}
+EOF
+chmod 600 data/config.json
 
 # Register CLI command globally in ~/.local/bin
 echo -e "[*] Registering 'agpm' command..."

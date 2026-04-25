@@ -470,7 +470,7 @@ def get_portal_config() -> dict:
         save_config(config)
         
     return {
-        'port': portal.get('port', 2052),
+        'port': portal.get('port', 5000),
         'admin_slug': portal.get('admin_slug', 'admin'),
         'public_url': portal.get('public_url', ''),
         'secret_key': portal['secret_key']
