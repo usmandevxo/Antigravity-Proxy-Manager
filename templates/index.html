@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGPM - Command Center</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Font loading based on styles.css requirements (Ubuntu & Oswald typically) -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Ubuntu+Mono&family=Ubuntu:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom overrides to bridge old logic with new design */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .pulse-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .pulse-dot.running {
+            background-color: #16A34A;
+            box-shadow: 0 0 8px #16A34A;
+        }
+
+        .pulse-dot.stopped {
+            background-color: #DC2626;
+            box-shadow: 0 0 8px #DC2626;
+        }
+
+        .spin {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .toast {
+            padding: 12px 24px;
+            border-radius: var(--radius-md);
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: var(--text-sm);
+            font-weight: var(--weight-medium);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .toast.success {
+            background-color: #16A34A;
+        }
+
+        .toast.error {
+            background-color: #DC2626;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .py-4 {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+
+        .text-dim {
+            color: var(--color-text-secondary);
+        }
+
+        /* Modal visibility utilities */
+        .ds-modal-overlay.active {
+            display: flex !important;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Adjusting tables for dark modes if necessary */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .data-table th {
+            font-weight: var(--weight-medium);
+            color: var(--color-text-secondary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="ds-layout">
+
+        <!-- SIDEBAR -->
+        <aside class="ds-sidebar" id="sidebar">
+            <div class="ds-sidebar__brand">
+                <div class="ds-sidebar__brandmark">A</div>
+                <div>
+                    <div class="ds-sidebar__title">AGPM</div>
+                    <div class="ds-sidebar__subtitle">Command Center</div>
+                </div>
+            </div>
+            <nav class="ds-sidebar__nav nav-links">
+                <div class="ds-sidebar__group">
+                    <div class="ds-sidebar__group-label">Navigation</div>
+                    <a class="ds-sidebar__link active" data-tab="accounts" style="cursor:pointer;"><i
+                            data-lucide="users"></i> Accounts</a>
+                    <a class="ds-sidebar__link" data-tab="models" style="cursor:pointer;"><i data-lucide="cpu"></i>
+                        Models</a>
+                    <a class="ds-sidebar__link" data-tab="api" style="cursor:pointer;"><i data-lucide="code-2"></i>
+                        API</a>
+                    <a class="ds-sidebar__link" data-tab="settings" style="cursor:pointer;"><i
+                            data-lucide="settings"></i> Settings</a>
+                </div>
+                <div class="ds-sidebar__group">
+                    <div class="ds-sidebar__group-label">Session</div>
+                    <a class="ds-sidebar__link" href="/logout"><i data-lucide="log-out"></i> Logout</a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="ds-main">
+            <header class="ds-header">
+                <button class="ds-sidebar-toggle" aria-label="Toggle sidebar">
+                    <i data-lucide="menu"></i>
+                </button>
+                <div class="ds-header__search" style="border:none; box-shadow:none; background:transparent;">
+                    <!-- Spacer -->
+                </div>
+                <div class="ds-header__actions">
+                    <div style="display:flex; align-items:center; gap: 12px;">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <div class="pulse-dot stopped" id="proxy-status-dot"></div>
+                            <span id="proxy-status-text"
+                                style="font-size: var(--text-sm); font-weight: var(--weight-medium);">Checking...</span>
+                        </div>
+                        <button id="btn-toggle-proxy" class="btn btn--primary btn--sm">Start Proxy</button>
+                    </div>
+                </div>
+            </header>
+
+            <div class="ds-content">
+                <!-- Accounts Tab -->
+                <section id="tab-accounts" class="tab-content active">
+                    <div class="ds-section__header">
+                        <h2 class="ds-section__title">Account Fleet</h2>
+                        <p class="ds-section__desc">Manage and monitor your attached API quotas.</p>
+                        <div style="margin-top: var(--space-4); display:flex; gap:var(--space-2);">
+                            <button class="btn btn--secondary" id="btn-refresh-all"><i data-lucide="refresh-cw"
+                                    style="width:16px;height:16px;"></i> Refresh All</button>
+                            <button class="btn btn--primary" id="btn-add-account"><i data-lucide="plus"
+                                    style="width:16px;height:16px;"></i> Add Account</button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Email</th>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th>Flash Usage</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accounts-tbody">
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-dim">Loading accounts...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Models Tab -->
+                <section id="tab-models" class="tab-content">
+                    <div class="ds-section__header">
+                        <h2 class="ds-section__title">Supported Models</h2>
+                        <p class="ds-section__desc">Alias mappings available for inference.</p>
+                        <div style="margin-top: var(--space-4);">
+                            <button class="btn btn--primary" id="btn-fetch-models"><i data-lucide="refresh-cw"
+                                    style="width:16px;height:16px;"></i> Refresh Available Models</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>OpenAI Alias</th>
+                                    <th>Internal Target</th>
+                                </tr>
+                            </thead>
+                            <tbody id="models-tbody">
+                                <tr>
+                                    <td colspan="2" class="text-center py-4 text-dim">Loading models...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- API Tab -->
+                <section id="tab-api" class="tab-content">
+                    <div class="ds-section__header">
+                        <h2 class="ds-section__title">API Documentation</h2>
+                        <p class="ds-section__desc">Integrate AGPM with your favorite tools using OpenAI-compatible
+                            endpoints.</p>
+                    </div>
+
+                    <div class="card" style="padding: var(--space-6);">
+                        <h3 class="ds-subsection__title">Base URL</h3>
+                        <div class="form-input" id="api-base-url"
+                            style="background:var(--color-surface); font-family:var(--font-mono); display:flex; align-items:center;">
+                            http://127.0.0.1:8050/v1</div>
+
+                        <h3 class="ds-subsection__title" style="margin-top: var(--space-6);">Authentication</h3>
+                        <p class="text-dim">No API key required for local access. All active accounts are used in a
+                            round-robin rotation.</p>
+
+                        <h3 class="ds-subsection__title" style="margin-top: var(--space-6);">cURL Example</h3>
+                        <div class="form-input"
+                            style="background:var(--color-surface); font-family:var(--font-mono); white-space: pre-wrap; height: auto; padding: var(--space-4); line-height: 1.5;">
+                            curl http://localhost:8050/v1/chat/completions \
+                            -H "Content-Type: application/json" \
+                            -H "Authorization: Bearer sk-80703eff26f24993ba93049345c8dda0" \
+                            -d '{
+                            "model": "claude-opus-4-6-thinking",
+                            "messages": [{"role": "user", "content": "Hello"}]
+                            }'
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Settings Tab -->
+                <section id="tab-settings" class="tab-content">
+                    <div class="ds-section__header">
+                        <h2 class="ds-section__title">System Settings</h2>
+                        <p class="ds-section__desc">Configure local proxy and startup behaviors.</p>
+                    </div>
+
+                    <div class="ds-grid ds-grid--3">
+                        <div class="card" style="padding: var(--space-5);">
+                            <h3 class="ds-subsection__title">Proxy Configuration</h3>
+                            <div class="form-group" style="margin-top: var(--space-4);">
+                                <label class="form-label">Proxy Server Port</label>
+                                <input type="number" id="input-proxy-port" class="form-input" value="8050">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Upstream Proxy URL (Optional)</label>
+                                <input type="text" id="input-upstream-proxy" class="form-input"
+                                    placeholder="http://127.0.0.1:7890">
+                            </div>
+                            <div class="form-group" style="margin-top: var(--space-4);">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" id="input-proxy-autostart"> Auto-Start Proxy with Portal
+                                </label>
+                            </div>
+                            <button class="btn btn--primary" id="btn-save-settings"
+                                style="width: 100%; margin-top: var(--space-4);">Save Proxy Config</button>
+                        </div>
+
+                        <div class="card" style="padding: var(--space-5);">
+                            <h3 class="ds-subsection__title">Portal Security</h3>
+                            <div class="form-group" style="margin-top: var(--space-4);">
+                                <label class="form-label">Portal Port</label>
+                                <input type="number" id="input-portal-port" class="form-input" value="5000">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Admin URL Slug</label>
+                                <input type="text" id="input-admin-slug" class="form-input" value="admin">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Admin Username</label>
+                                <input type="text" id="input-admin-username" class="form-input" value="admin">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">New Admin Password</label>
+                                <input type="password" id="input-admin-password" class="form-input"
+                                    placeholder="Leave blank to keep current">
+                            </div>
+                            <button class="btn btn--secondary" id="btn-save-security"
+                                style="width: 100%; margin-top: var(--space-4);">Update Security</button>
+
+                            <div style="text-align: center; margin-top: var(--space-4);">
+                                <a href="/start-login" target="_blank"
+                                    style="font-size: var(--text-sm); color: var(--color-primary); display:inline-flex; align-items:center; gap:4px; text-decoration:none;">
+                                    <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Direct
+                                    Account Login Link
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="card" style="padding: var(--space-5);">
+                            <h3 class="ds-subsection__title">System Auto-Start</h3>
+                            <p class="text-dim"
+                                style="font-size: var(--text-sm); margin-top: var(--space-2); margin-bottom: var(--space-4);">
+                                Automatically start the AGPM Web Portal when the server boots (Systemd Daemon).</p>
+                            <div class="form-group">
+                                <label class="form-switch">
+                                    <input type="checkbox" id="input-service-autostart">
+                                    <span class="form-switch__track"><span class="form-switch__thumb"></span></span>
+                                    Start on System Boot
+                                </label>
+                            </div>
+                            <p class="text-dim" style="font-size: var(--text-sm); margin-top: var(--space-3);"
+                                id="service-status-msg"></p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for OAuth Polling -->
+    <div class="ds-modal-overlay" id="oauth-modal"
+        style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+        <div class="card" style="padding: var(--space-8); width: 400px; text-align: center;">
+            <i data-lucide="loader" class="spin"
+                style="width: 48px; height: 48px; color: var(--color-primary); margin-bottom: var(--space-4); display:inline-block;"></i>
+            <h3 class="ds-subsection__title">Waiting for Authentication</h3>
+            <p class="text-dim" style="margin-top: var(--space-2);">Please complete the login flow in the new tab...</p>
+            <button class="btn btn--outline" id="btn-cancel-oauth"
+                style="width: 100%; margin-top: var(--space-6);">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Test Modal -->
+    <div class="ds-modal-overlay" id="modal-test"
+        style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+        <div class="card" style="padding: var(--space-6); width: 500px; max-width: 90vw;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+                <h3 class="ds-subsection__title">Test Account: <span id="test-email-display"></span></h3>
+                <button class="btn btn--ghost btn--icon btn--sm" id="btn-close-test-modal"><i
+                        data-lucide="x"></i></button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Test Prompt</label>
+                <textarea id="test-prompt" class="form-textarea" rows="3"
+                    placeholder="Type a message to test the proxy..."></textarea>
+            </div>
+            <div class="form-group" style="margin-top: var(--space-4);">
+                <label class="form-label">Model</label>
+                <select id="test-model" class="form-select">
+                    <option value="gemini-3.1-pro-high">Gemini 3.1 Pro (High)</option>
+                    <option value="gemini-3-flash" selected>Gemini 3 Flash</option>
+                    <option value="claude-sonnet-4-6-thinking">Claude 3.5 Sonnet</option>
+                </select>
+            </div>
+            <button class="btn btn--primary" id="btn-run-test" style="width: 100%; margin-top: var(--space-5);">Run
+                Proxy Test</button>
+
+            <div id="test-result-container" class="hidden" style="margin-top: var(--space-5);">
+                <label class="form-label">Response</label>
+                <div id="test-result-text" class="form-input"
+                    style="background: var(--color-surface); height: auto; max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: var(--text-sm); padding: var(--space-4);">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"
+        style="position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px;">
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>

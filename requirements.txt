@@ -1,0 +1,6 @@
+rich
+httpx
+cryptography
+psutil
+Flask
+python-dotenv

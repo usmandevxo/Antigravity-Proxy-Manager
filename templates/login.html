@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGPM - Secure Login</title>
+    <!-- Premium Fonts matching admin theme -->
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Ubuntu+Mono&family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Use admin theme CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=3">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            font-family: var(--font-primary);
+            background-color: var(--color-surface);
+        }
+        
+        .login-split {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        .login-brand {
+            flex: 1;
+            background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+            color: var(--color-text-inverse);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: var(--space-8);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Abstract geometric shapes for the brand side */
+        .login-brand::before {
+            content: '';
+            position: absolute;
+            top: -10%;
+            right: -10%;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 95, 3, 0.15) 0%, transparent 70%);
+        }
+
+        .login-brand::after {
+            content: '';
+            position: absolute;
+            bottom: -5%;
+            left: -10%;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(26, 107, 107, 0.4) 0%, transparent 70%);
+        }
+
+        .brand-logo-container {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+
+        .brand-logo-mark {
+            width: 48px;
+            height: 48px;
+            background: var(--color-secondary);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-display);
+            font-size: var(--text-2xl);
+            font-weight: var(--weight-bold);
+            color: var(--color-surface-raised);
+            box-shadow: 0 4px 12px rgba(255, 95, 3, 0.3);
+        }
+
+        .brand-content {
+            position: relative;
+            z-index: 2;
+            max-width: 480px;
+        }
+
+        .brand-title {
+            font-family: var(--font-display);
+            font-size: 3.5rem;
+            line-height: 1.1;
+            margin-bottom: var(--space-4);
+            letter-spacing: -0.5px;
+        }
+
+        .brand-title span {
+            color: var(--color-secondary);
+        }
+
+        .brand-desc {
+            font-size: var(--text-lg);
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.6;
+        }
+
+        .login-form-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-8);
+            background-color: var(--color-surface);
+            position: relative;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            animation: slideIn 0.5s ease-out forwards;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .mobile-brand {
+            display: none;
+            text-align: center;
+            margin-bottom: var(--space-6);
+        }
+
+        @media (max-width: 900px) {
+            .login-brand {
+                display: none;
+            }
+            .mobile-brand {
+                display: block;
+            }
+            .login-form-container {
+                padding: var(--space-4);
+            }
+        }
+        
+        .error-banner {
+            background-color: var(--color-danger-bg);
+            color: var(--color-danger);
+            border: 1px solid rgba(220, 38, 38, 0.2);
+            padding: var(--space-3);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--space-6);
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: var(--text-sm);
+            font-weight: var(--weight-medium);
+            animation: shake 0.4s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+
+        /* Custom input icon positioning */
+        .input-with-icon {
+            position: relative;
+        }
+        
+        .input-with-icon .lucide {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--color-text-tertiary);
+            transition: color var(--duration-base) var(--ease-default);
+            pointer-events: none;
+        }
+
+        .input-with-icon .form-input {
+            padding-left: 42px;
+        }
+
+        .input-with-icon .form-input:focus + .lucide {
+            color: var(--color-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="login-split">
+        <!-- Left Side: Brand Showcase -->
+        <div class="login-brand">
+            <div class="brand-logo-container">
+                <div class="brand-logo-mark">A</div>
+                <span style="font-family: var(--font-display); font-size: var(--text-xl); font-weight: var(--weight-bold); letter-spacing: 1px;">AGPM</span>
+            </div>
+            
+            <div class="brand-content">
+                <h1 class="brand-title">Enterprise<br>Command <span>Center</span></h1>
+                <p class="brand-desc">Manage your AI API quotas, configure model routing, and deploy seamlessly through a unified, high-performance interface.</p>
+            </div>
+            
+            <div style="position: relative; z-index: 2; font-size: var(--text-sm); color: rgba(255,255,255,0.5);">
+                &copy; 2026 UsmanDevX. All rights reserved.
+            </div>
+        </div>
+
+        <!-- Right Side: Login Form -->
+        <div class="login-form-container">
+            <div class="login-card">
+                <div class="mobile-brand">
+                    <div class="brand-logo-mark" style="margin: 0 auto var(--space-3);">A</div>
+                    <h2 class="ds-section__title" style="margin-bottom: 0;">AGPM</h2>
+                    <p class="ds-section__desc">Command Center</p>
+                </div>
+
+                <div style="margin-bottom: var(--space-8);">
+                    <h2 style="font-family: var(--font-display); font-size: 2.2rem; margin-bottom: var(--space-2); color: var(--color-text);">Welcome back</h2>
+                    <p style="color: var(--color-text-secondary); font-size: var(--text-base);">Please enter your credentials to access the portal.</p>
+                </div>
+
+                {% if error %}
+                <div class="error-banner">
+                    <i data-lucide="alert-circle" style="width: 18px; height: 18px;"></i>
+                    {{ error }}
+                </div>
+                {% endif %}
+
+                <form action="/login" method="POST">
+                    <div class="form-group" style="margin-bottom: var(--space-5);">
+                        <label class="form-label">Username</label>
+                        <div class="input-with-icon">
+                            <input type="text" name="username" class="form-input" placeholder="admin" required autofocus>
+                            <i data-lucide="user" style="width: 18px; height: 18px;"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: var(--space-6);">
+                        <label class="form-label">Password</label>
+                        <div class="input-with-icon">
+                            <input type="password" name="password" class="form-input" placeholder="••••••••" required>
+                            <i data-lucide="lock" style="width: 18px; height: 18px;"></i>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn--primary btn--lg" style="width: 100%; display: flex; justify-content: center; align-items: center; gap: var(--space-2);">
+                        Secure Login
+                        <i data-lucide="arrow-right" style="width: 18px; height: 18px;"></i>
+                    </button>
+                </form>
+
+                <div style="text-align: center; margin-top: var(--space-8);">
+                    <p style="color: var(--color-text-tertiary); font-size: var(--text-sm);">
+                        Default credentials: <span style="font-family: var(--font-mono); background: var(--color-border-light); padding: 2px 6px; border-radius: 4px; color: var(--color-text-secondary);">admin / admin</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
