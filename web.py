@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request, render_template, send_from_directory, session, redirect, url_for, Response, stream_with_context
+from werkzeug.middleware.proxy_fix import ProxyFix
 import core
 import proxy
 import os
@@ -15,6 +16,7 @@ import itertools
 import threading
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 portal_cfg = core.get_portal_config()
 app.secret_key = portal_cfg['secret_key']
 
@@ -38,6 +40,9 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'logged_in' not in session:
+            # For API requests, return JSON instead of redirecting to login page
+            if request.path.startswith('/api/'):
+                return jsonify({'success': False, 'error': 'Unauthorized', 'login_required': True}), 401
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
@@ -85,6 +90,7 @@ def dashboard(slug):
     return render_template('index.html', admin_slug=cfg['admin_slug'])
 
 @app.route('/api/accounts', methods=['GET'])
+@app.route('/api/accounts/', methods=['GET'])
 @login_required
 def get_accounts():
     try:
@@ -103,6 +109,7 @@ def get_accounts():
         return jsonify({'accounts': [], 'error': 'Database or internal error', 'details': str(e)}), 500
 
 @app.route('/api/accounts/oauth/start', methods=['POST'])
+@app.route('/api/accounts/oauth/start/', methods=['POST'])
 @login_required
 def oauth_start():
     # Detect the current domain to help with OAuth redirects
@@ -164,6 +171,7 @@ def refresh_quota(email):
     return jsonify({'success': success, 'message': msg})
 
 @app.route('/api/models', methods=['GET'])
+@app.route('/api/models/', methods=['GET'])
 @login_required
 def get_models():
     models = core.get_available_models()
@@ -175,6 +183,7 @@ def get_models():
 # --- Consolidated Proxy Routes ---
 
 @app.route('/v1/models', methods=['GET'])
+@app.route('/v1/models/', methods=['GET'])
 def v1_models():
     """OpenAI-compatible models list."""
     available = core.get_available_models()
@@ -477,6 +486,7 @@ WantedBy=default.target
 
 
 @app.route('/api/proxy/status', methods=['GET'])
+@app.route('/api/proxy/status/', methods=['GET'])
 @login_required
 def proxy_status():
     portal_cfg = core.get_portal_config()

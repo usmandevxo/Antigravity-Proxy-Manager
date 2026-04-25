@@ -76,6 +76,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             const res = await fetch('/api/accounts');
+            if (res.status === 401) {
+                window.location.href = '/login';
+                return;
+            }
             const data = await res.json();
             
             if (data.accounts.length === 0) {
@@ -120,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             lucide.createIcons();
         } catch (e) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-dim" style="color:var(--accent-danger)">Failed to load accounts</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-dim" style="color:var(--accent-danger)">Failed to load accounts. Please refresh.</td></tr>';
         }
     };
 
