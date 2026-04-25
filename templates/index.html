@@ -233,9 +233,9 @@
 
                     <div class="card" style="padding: var(--space-6);">
                         <h3 class="ds-subsection__title">Base URL</h3>
-                        <div class="form-input" id="api-base-url"
-                            style="background:var(--color-surface); font-family:var(--font-mono); display:flex; align-items:center;">
-                            http://127.0.0.1:5000/v1</div>
+                        <div class="code-block" id="api-base-url-display"
+                            style="padding: var(--space-3); background: var(--color-surface); border-radius: var(--radius-md); font-family: monospace; font-size: var(--text-sm); color: var(--color-primary);">
+                            {{ host_url }}/v1</div>
 
                         <h3 class="ds-subsection__title" style="margin-top: var(--space-6);">Authentication</h3>
                         <p class="text-dim">No API key required for local access. All active accounts are used in a
@@ -244,7 +244,7 @@
                         <h3 class="ds-subsection__title" style="margin-top: var(--space-6);">cURL Example</h3>
                         <div class="form-input"
                             style="background:var(--color-surface); font-family:var(--font-mono); white-space: pre-wrap; height: auto; padding: var(--space-4); line-height: 1.5;">
-                            curl http://localhost:5000/v1/chat/completions \
+                            curl {{ host_url }}/v1/chat/completions \
                             -H "Content-Type: application/json" \
                             -H "Authorization: Bearer sk-80703eff26f24993ba93049345c8dda0" \
                             -d '{

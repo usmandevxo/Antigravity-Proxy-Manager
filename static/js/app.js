@@ -27,10 +27,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        
+
         const icon = type === 'success' ? 'check-circle' : 'alert-circle';
         toast.innerHTML = `<i data-lucide="${icon}"></i> <span>${message}</span>`;
-        
+
         container.appendChild(toast);
         lucide.createIcons();
 
@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dot.className = 'pulse-dot stopped';
                 text.textContent = `Offline? (Port ${data.port})`;
             }
-            
+
             // Update API Base URL display if it exists
             const apiBase = document.getElementById('api-base-url');
             if (apiBase) apiBase.textContent = `http://${window.location.hostname}:${data.port}/v1`;
@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadAccounts = async () => {
         const tbody = document.getElementById('accounts-tbody');
         tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-dim">Loading accounts...</td></tr>';
-        
+
         try {
             const res = await fetch('/api/accounts');
             if (res.status === 401) {
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const data = await res.json();
-            
+
             if (data.accounts.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-dim">No accounts found. Add one to start.</td></tr>';
                 return;
@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tbody.innerHTML = '';
             data.accounts.forEach(acc => {
                 const tr = document.createElement('tr');
-                
+
                 // Calculate Usage (simplified)
                 let usage = 'N/A';
                 const quota = acc.quota;
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('test-result-text').textContent = '';
         document.getElementById('test-prompt').value = '';
         testModal.classList.add('active');
-        
+
         // Ensure models are loaded for the select
         loadModels();
     };
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ email: currentTestEmail, prompt, model })
             });
             const data = await res.json();
-            
+
             if (data.success) {
                 const content = data.response.choices[0].message.content;
                 resultText.textContent = content;
@@ -239,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch('/api/accounts/oauth/start', { method: 'POST' });
             const data = await res.json();
-            
+
             if (data.auth_url) {
                 window.open(data.auth_url, '_blank');
                 modal.classList.add('active');
@@ -260,11 +260,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     `;
                     modalBody.appendChild(div);
-                    
+
                     document.getElementById('btn-submit-code').addEventListener('click', async () => {
                         const code = document.getElementById('input-oauth-code').value.trim();
                         if (!code) return;
-                        
+
                         try {
                             const cbRes = await fetch('/api/accounts/oauth/callback', {
                                 method: 'POST',
@@ -285,15 +285,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
-                
+
                 oauthPollInterval = setInterval(async () => {
                     const checkRes = await fetch(`/api/accounts/oauth/check/${data.port}`);
                     const checkData = await checkRes.json();
-                    
+
                     if (!checkData.pending) {
                         clearInterval(oauthPollInterval);
                         modal.classList.remove('active');
-                        
+
                         if (checkData.success) {
                             if (checkData.added) {
                                 showToast(`Successfully added ${checkData.email}`, 'success');
@@ -322,13 +322,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.getElementById('models-tbody');
         if (!tbody) return;
         tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-dim">Loading models...</td></tr>';
-        
+
         try {
             const res = await fetch('/api/models');
             const data = await res.json();
-            
+
             tbody.innerHTML = '';
-            
+
             // Show real models
             if (data.models && data.models.length > 0) {
                 data.models.forEach(model => {
@@ -339,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     `;
                     tbody.appendChild(tr);
                 });
-                
+
                 // Update test modal select
                 const testSelect = document.getElementById('test-model');
                 const currentVal = testSelect.value;
@@ -362,7 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 tbody.appendChild(tr);
             }
-            
+
             lucide.createIcons();
         } catch (e) {
             tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-dim" style="color:var(--accent-danger)">Failed to load models</td></tr>';
@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = true;
         btn.innerHTML = '<i data-lucide="refresh-cw" class="spin"></i> Fetching...';
         lucide.createIcons();
-        
+
         try {
             const res = await fetch('/api/models/fetch', { method: 'POST' });
             const data = await res.json();
@@ -403,14 +403,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('input-upstream-proxy').value = data.upstream_proxy || '';
             document.getElementById('input-admin-slug').value = data.admin_slug || 'admin';
             document.getElementById('input-admin-username').value = data.admin_username || 'admin';
-        } catch (e) {}
+        } catch (e) { }
 
         try {
             const svcRes = await fetch('/api/service/status');
             const svcData = await svcRes.json();
             const autostartToggle = document.getElementById('input-service-autostart');
             const msgEl = document.getElementById('service-status-msg');
-            
+
             if (svcData.installed) {
                 autostartToggle.checked = svcData.enabled;
                 msgEl.textContent = svcData.enabled ? 'Service is enabled and will start on boot.' : 'Service is disabled.';
@@ -419,19 +419,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 autostartToggle.checked = false;
                 msgEl.textContent = 'Service is not installed yet. Toggling will install it.';
             }
-        } catch (e) {}
+        } catch (e) { }
     };
 
     document.getElementById('btn-save-settings').addEventListener('click', async () => {
         const port = document.getElementById('input-portal-port').value;
         const upstream = document.getElementById('input-upstream-proxy').value;
-        
+
         try {
             const res = await fetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    portal_port: parseInt(port), 
+                body: JSON.stringify({
+                    portal_port: parseInt(port),
                     proxy_port: parseInt(port), // sync them
                     upstream_proxy: upstream
                 })
@@ -450,12 +450,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const adminSlug = document.getElementById('input-admin-slug').value;
         const username = document.getElementById('input-admin-username').value;
         const password = document.getElementById('input-admin-password').value;
-        
+
         try {
             const res = await fetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     admin_slug: adminSlug,
                     admin_username: username,
                     admin_password: password
@@ -474,16 +474,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Restart System ---
     document.getElementById('btn-restart-system').addEventListener('click', async () => {
         if (!confirm('Are you sure you want to restart the AGPM services? This will take a few seconds.')) return;
-        
+
         const btn = document.getElementById('btn-restart-system');
         btn.disabled = true;
         btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Restarting...';
         lucide.createIcons();
-        
+
         try {
             const res = await fetch('/api/system/restart', { method: 'POST' });
             const data = await res.json();
-            
+
             if (data.success) {
                 showToast('Restart signal sent. Dashboard will reload soon.', 'success');
                 // Poll for availability
@@ -495,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 clearInterval(checkInterval);
                                 location.reload();
                             }
-                        } catch(e) {}
+                        } catch (e) { }
                     }, 2000);
                 }, 3000);
             } else {
@@ -515,20 +515,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const msgEl = document.getElementById('service-status-msg');
         msgEl.textContent = isChecked ? 'Enabling...' : 'Disabling...';
         msgEl.style.color = 'var(--text-dim)';
-        
+
         try {
             // If it was never installed, we install it first if they toggle it ON.
             // But since our install route is gone, we'll rely on the toggle route which does enable.
             // Oh wait, our service toggle route does `systemctl enable`. It requires the unit file.
             // We should make sure the service toggle route also writes the unit file if it doesn't exist.
-            
-            const res = await fetch('/api/service/toggle', { 
+
+            const res = await fetch('/api/service/toggle', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ enable: isChecked })
             });
             const data = await res.json();
-            
+
             msgEl.textContent = data.message;
             if (data.success) {
                 msgEl.style.color = isChecked ? 'var(--accent-success)' : 'var(--text-dim)';

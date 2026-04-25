@@ -87,7 +87,7 @@ def dashboard(slug):
     cfg = core.get_portal_config()
     if slug != cfg['admin_slug']:
         return redirect(url_for('dashboard', slug=cfg['admin_slug']))
-    return render_template('index.html', admin_slug=cfg['admin_slug'])
+    return render_template('index.html', admin_slug=cfg['admin_slug'], host_url=request.host_url.rstrip('/'))
 
 @app.route('/api/accounts', methods=['GET'])
 @app.route('/api/accounts/', methods=['GET'])
@@ -112,20 +112,19 @@ def get_accounts():
 @app.route('/api/accounts/oauth/start/', methods=['POST'])
 @login_required
 def oauth_start():
-    # Detect the current domain to help with OAuth redirects
-    # If using a proxy, the Host header should be the public domain
-    host_url = request.host_url.rstrip('/')
+    # Detect the current domain dynamically to help with OAuth redirects
+    # request.host includes the domain and port if provided
+    host_only = request.host.split(':')[0]
     
-    # Try to use the current host for redirect if not 127.0.0.1
-    redirect_uri = None
-    if '127.0.0.1' not in host_url and 'localhost' not in host_url:
-        # On a server, the redirect should ideally go back to the server's OAuth port
-        # but Google requires exact matches. Most users whitelist http://127.0.0.1:5005
-        # for local. For server, we'll default to 127.0.0.1 unless configured otherwise.
-        pass
+    # We use port 5005 for the callback server
+    if host_only in ['127.0.0.1', 'localhost']:
+        redirect_uri = f"http://127.0.0.1:5005"
+    else:
+        # Use the actual domain/IP used to access the dashboard
+        redirect_uri = f"http://{host_only}:5005"
 
-    auth_url, port = core.get_oauth_url_only(auto_save=True)
-    return jsonify({'auth_url': auth_url, 'port': port})
+    auth_url, port = core.get_oauth_url_only(auto_save=True, redirect_uri=redirect_uri)
+    return jsonify({'auth_url': auth_url, 'port': port, 'redirect_uri': redirect_uri})
 
 @app.route('/api/accounts/oauth/callback', methods=['POST'])
 @login_required
