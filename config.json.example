@@ -1,0 +1,15 @@
+{
+  "portal": {
+    "port": 2052,
+    "admin_slug": "admin",
+    "public_url": "http://your-domain.com"
+  },
+  "auth": {
+    "username": "admin",
+    "password": "your_secure_password"
+  },
+  "oauth": {
+    "client_id": "your_google_client_id_here",
+    "client_secret": "your_google_client_secret_here"
+  }
+}

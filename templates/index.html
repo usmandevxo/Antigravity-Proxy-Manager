@@ -267,12 +267,12 @@
                             <h3 class="ds-subsection__title">Unified Configuration</h3>
                             <div class="form-group" style="margin-top: var(--space-4);">
                                 <label class="form-label">System Port (Portal & Proxy)</label>
-                                <input type="number" id="input-portal-port" class="form-input" value="5000">
+                                <input type="number" id="input-portal-port" class="form-input" value="{{ portal_port }}">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Upstream Proxy URL (Optional)</label>
                                 <input type="text" id="input-upstream-proxy" class="form-input"
-                                    placeholder="http://127.0.0.1:7890">
+                                    placeholder="http://proxy-ip:port (optional)">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Public Domain/URL (Optional)</label>
@@ -290,10 +290,6 @@
                         <div class="card" style="padding: var(--space-5);">
                             <h3 class="ds-subsection__title">Portal Security</h3>
                             <div class="form-group" style="margin-top: var(--space-4);">
-                                <label class="form-label">Admin URL Slug</label>
-                                <input type="text" id="input-admin-slug" class="form-input" value="admin">
-                            </div>
-                            <div class="form-group">
                                 <label class="form-label">Admin URL Slug</label>
                                 <input type="text" id="input-admin-slug" class="form-input" value="admin">
                             </div>

@@ -87,7 +87,7 @@ def dashboard(slug):
     cfg = core.get_portal_config()
     if slug != cfg['admin_slug']:
         return redirect(url_for('dashboard', slug=cfg['admin_slug']))
-    return render_template('index.html', admin_slug=cfg['admin_slug'], host_url=request.host_url.rstrip('/'))
+    return render_template('index.html', admin_slug=cfg['admin_slug'], host_url=request.host_url.rstrip('/'), portal_port=cfg['port'])
 
 @app.route('/api/accounts', methods=['GET'])
 @app.route('/api/accounts/', methods=['GET'])
@@ -111,23 +111,22 @@ def get_accounts():
 @app.route('/api/accounts/oauth/start', methods=['POST'])
 @app.route('/api/accounts/oauth/start/', methods=['POST'])
 @login_required
+def oauth_start():
     portal_cfg = core.get_portal_config()
     public_url = portal_cfg.get('public_url')
     
     if public_url:
-        # Use manually configured public URL (ensure it has port 5005)
+        # Use manually configured public URL
         parsed = urllib.parse.urlparse(public_url)
+        scheme = parsed.scheme or 'http'
         host_only = parsed.hostname or public_url.split(':')[0]
-        redirect_uri = f"http://{host_only}:5005"
+        redirect_uri = f"{scheme}://{host_only}:5005"
     else:
-        # Detect the current domain dynamically
+        # Detect the current domain dynamically from the browser's request
         host_only = request.host.split(':')[0]
-        if host_only in ['127.0.0.1', 'localhost']:
-            redirect_uri = f"http://127.0.0.1:5005"
-        else:
-            redirect_uri = f"http://{host_only}:5005"
+        redirect_uri = f"http://{host_only}:5005"
 
-    print(f"[*] OAuth Start | Public URL: {public_url} | Host: {request.host} | Redirect: {redirect_uri}")
+    print(f"[*] OAuth Start | Host: {request.host} | Redirect URI: {redirect_uri}")
     auth_url, port = core.get_oauth_url_only(auto_save=True, redirect_uri=redirect_uri)
     return jsonify({'auth_url': auth_url, 'port': port, 'redirect_uri': redirect_uri})
 

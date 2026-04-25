@@ -28,10 +28,33 @@ DB_PATH = os.path.join(DATA_DIR, 'agpm.db')
 CONFIG_PATH = os.path.join(DATA_DIR, 'config.json')
 KEY_PATH = os.path.join(DATA_DIR, '.mk')
 
+def load_config() -> dict:
+    """Load config.json from AGPM/data/."""
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_config(config_data: dict) -> bool:
+    """Save config.json to AGPM/data/."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    try:
+        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+            json.dump(config_data, f, indent=2)
+        return True
+    except Exception:
+        return False
+
 # --- API Constants ---
-# Hardcoded for direct use without .env dependency
-CLIENT_ID = '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com'
-CLIENT_SECRET = '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'
+# Loaded dynamically from data/config.json to prevent security leaks
+_tmp_config = load_config()
+_tmp_oauth = _tmp_config.get('oauth', {})
+CLIENT_ID = _tmp_oauth.get('client_id', 'your_google_client_id_here')
+CLIENT_SECRET = _tmp_oauth.get('client_secret', 'your_google_client_secret_here')
 OAUTH_PORT = 5005
 USER_AGENT = 'antigravity/1.11.3 Linux/x86_64'
 URL_TOKEN = 'https://oauth2.googleapis.com/token'
@@ -368,26 +391,6 @@ def validate_refresh_token(refresh_token: str) -> dict | None:
 
 # --- Config ---
 
-def load_config() -> dict:
-    """Load config.json from AGPM/data/."""
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
-
-
-def save_config(config_data: dict) -> bool:
-    """Save config.json to AGPM/data/."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    try:
-        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-            json.dump(config_data, f, indent=2)
-        return True
-    except Exception:
-        return False
 
 
 def get_proxy_config() -> dict:
