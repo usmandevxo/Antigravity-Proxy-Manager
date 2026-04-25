@@ -57,30 +57,45 @@ read -s -p "Enter Admin Password [admin]: " ADMIN_PASS
 echo ""
 ADMIN_PASS=${ADMIN_PASS:-admin}
 
-read -p "Enter Google OAuth Client ID (Optional): " CLIENT_ID
-read -p "Enter Google OAuth Client Secret (Optional): " CLIENT_SECRET
+# Standard Google OAuth credentials (hardcoded for consistency)
+CLIENT_ID="1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
+CLIENT_SECRET="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"
 
 # Create data directory
 mkdir -p data
 
-# Generate config.json
-echo -e "[*] Generating configuration..."
-cat > data/config.json <<EOF
-{
-  "portal": {
-    "port": $PORTAL_PORT,
-    "admin_slug": "$ADMIN_SLUG",
-    "public_url": "$PUBLIC_URL"
-  },
-  "auth": {
-    "username": "$ADMIN_USER",
-    "password": "$ADMIN_PASS"
-  },
-  "oauth": {
-    "client_id": "${CLIENT_ID:-your_google_client_id_here}",
-    "client_secret": "${CLIENT_SECRET:-your_google_client_secret_here}"
-  }
-}
+# Generate/Update config.json
+echo -e "[*] Updating configuration..."
+python3 <<EOF
+import json, os
+path = 'data/config.json'
+cfg = {}
+if os.path.exists(path):
+    try:
+        with open(path, 'r') as f: cfg = json.load(f)
+    except: pass
+
+if 'portal' not in cfg: cfg['portal'] = {}
+cfg['portal'].update({
+    'port': $PORTAL_PORT,
+    'admin_slug': "$ADMIN_SLUG",
+    'public_url': "$PUBLIC_URL"
+})
+
+if 'auth' not in cfg: cfg['auth'] = {}
+cfg['auth'].update({
+    'username': "$ADMIN_USER",
+    'password': "$ADMIN_PASS"
+})
+
+if 'oauth' not in cfg: cfg['oauth'] = {}
+cfg['oauth'].update({
+    'client_id': "$CLIENT_ID",
+    'client_secret': "$CLIENT_SECRET"
+})
+
+with open(path, 'w') as f:
+    json.dump(cfg, f, indent=2)
 EOF
 chmod 600 data/config.json
 

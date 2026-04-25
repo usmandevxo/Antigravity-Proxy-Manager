@@ -5,3 +5,4 @@ data/
 *.db
 .env
 site/
+agpm.egg-info/
