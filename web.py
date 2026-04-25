@@ -70,16 +70,21 @@ def get_redirect_uri():
         # If the user provided a port in public_url, use it. 
         # Otherwise, default to 5005 which is where the callback server listens.
         if ':' in host:
-            return f"{scheme}://{host}".rstrip('/')
+            final_uri = f"{scheme}://{host}".rstrip('/')
         else:
-            return f"{scheme}://{host}:5005"
+            final_uri = f"{scheme}://{host}:5005"
+            
+        print(f"[*] Generated Redirect URI: {final_uri} (Source: public_url settings)")
+        return final_uri
     
     # Fallback to detecting from request
     # Respect X-Forwarded-Proto for proxies, fallback to request.scheme
     scheme = request.headers.get('X-Forwarded-Proto', request.scheme)
     # request.host includes the port, we want to strip it and use 5005
     host_only = request.host.split(':')[0]
-    return f"{scheme}://{host_only}:5005"
+    final_uri = f"{scheme}://{host_only}:5005"
+    print(f"[*] Generated Redirect URI: {final_uri} (Source: Request Detection)")
+    return final_uri
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
