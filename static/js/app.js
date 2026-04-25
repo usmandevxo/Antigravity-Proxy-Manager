@@ -401,6 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             document.getElementById('input-portal-port').value = data.portal_port || 5000;
             document.getElementById('input-upstream-proxy').value = data.upstream_proxy || '';
+            document.getElementById('input-public-url').value = data.public_url || '';
             document.getElementById('input-admin-slug').value = data.admin_slug || 'admin';
             document.getElementById('input-admin-username').value = data.admin_username || 'admin';
         } catch (e) { }
@@ -425,6 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-save-settings').addEventListener('click', async () => {
         const port = document.getElementById('input-portal-port').value;
         const upstream = document.getElementById('input-upstream-proxy').value;
+        const publicUrl = document.getElementById('input-public-url').value;
 
         try {
             const res = await fetch('/api/settings', {
@@ -433,7 +435,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({
                     portal_port: parseInt(port),
                     proxy_port: parseInt(port), // sync them
-                    upstream_proxy: upstream
+                    upstream_proxy: upstream,
+                    public_url: publicUrl
                 })
             });
             const data = await res.json();

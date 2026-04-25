@@ -111,18 +111,23 @@ def get_accounts():
 @app.route('/api/accounts/oauth/start', methods=['POST'])
 @app.route('/api/accounts/oauth/start/', methods=['POST'])
 @login_required
-def oauth_start():
-    # Detect the current domain dynamically to help with OAuth redirects
-    # request.host includes the domain and port if provided
-    host_only = request.host.split(':')[0]
+    portal_cfg = core.get_portal_config()
+    public_url = portal_cfg.get('public_url')
     
-    # We use port 5005 for the callback server
-    if host_only in ['127.0.0.1', 'localhost']:
-        redirect_uri = f"http://127.0.0.1:5005"
-    else:
-        # Use the actual domain/IP used to access the dashboard
+    if public_url:
+        # Use manually configured public URL (ensure it has port 5005)
+        parsed = urllib.parse.urlparse(public_url)
+        host_only = parsed.hostname or public_url.split(':')[0]
         redirect_uri = f"http://{host_only}:5005"
+    else:
+        # Detect the current domain dynamically
+        host_only = request.host.split(':')[0]
+        if host_only in ['127.0.0.1', 'localhost']:
+            redirect_uri = f"http://127.0.0.1:5005"
+        else:
+            redirect_uri = f"http://{host_only}:5005"
 
+    print(f"[*] OAuth Start | Public URL: {public_url} | Host: {request.host} | Redirect: {redirect_uri}")
     auth_url, port = core.get_oauth_url_only(auto_save=True, redirect_uri=redirect_uri)
     return jsonify({'auth_url': auth_url, 'port': port, 'redirect_uri': redirect_uri})
 
@@ -361,6 +366,7 @@ def settings():
             'proxy_auto_start': proxy_config.get('auto_start', True),
             'portal_port': portal_config['port'],
             'admin_slug': portal_config['admin_slug'],
+            'public_url': portal_config.get('public_url', ''),
             'admin_username': admin_user
         })
     else:
@@ -386,7 +392,8 @@ def settings():
         
         portal_port = data.get('portal_port', core.get_portal_config()['port'])
         admin_slug = data.get('admin_slug', core.get_portal_config()['admin_slug'])
-        core.save_portal_config(int(portal_port), admin_slug)
+        public_url = data.get('public_url', core.get_portal_config().get('public_url', ''))
+        core.save_portal_config(int(portal_port), admin_slug, public_url)
             
         if 'admin_username' in data and 'admin_password' in data:
             if data['admin_username'] and data['admin_password']:

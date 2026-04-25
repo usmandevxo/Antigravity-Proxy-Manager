@@ -467,19 +467,21 @@ def get_portal_config() -> dict:
         save_config(config)
         
     return {
-        'port': portal.get('port', 5000),
+        'port': portal.get('port', 2052),
         'admin_slug': portal.get('admin_slug', 'admin'),
+        'public_url': portal.get('public_url', ''),
         'secret_key': portal['secret_key']
     }
 
 
-def save_portal_config(port, admin_slug='admin') -> bool:
+def save_portal_config(port, admin_slug='admin', public_url='') -> bool:
     """Save portal configuration."""
     config = load_config()
     if 'portal' not in config:
         config['portal'] = {}
     config['portal']['port'] = port
     config['portal']['admin_slug'] = admin_slug
+    config['portal']['public_url'] = public_url
     return save_config(config)
 
 
@@ -538,6 +540,7 @@ class _OAuthCallbackHandler(BaseHTTPRequestHandler):
     error: str | None = None
     result: dict | None = None
     auto_save: bool = False
+    redirect_uri: str | None = None
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -554,7 +557,8 @@ class _OAuthCallbackHandler(BaseHTTPRequestHandler):
             
         code = params['code'][0]
         _OAuthCallbackHandler.auth_code = code
-        redirect_uri = f'http://127.0.0.1:{self.server.server_port}'
+        # Use the same redirect_uri that was used for the initial request
+        redirect_uri = _OAuthCallbackHandler.redirect_uri or f'http://127.0.0.1:{self.server.server_port}'
         
         # Synchronous token exchange and testing
         tokens = _exchange_code_for_tokens(code, redirect_uri)
@@ -978,6 +982,7 @@ def get_oauth_url_only(auto_save=False, redirect_uri=None) -> tuple[str, int]:
         'prompt': 'consent',
     }
     auth_url = f"{URL_AUTH}?{urllib.parse.urlencode(params)}"
+    _OAuthCallbackHandler.redirect_uri = redirect_uri
 
     # Run server in background thread
     def serve():
