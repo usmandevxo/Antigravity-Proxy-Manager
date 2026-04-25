@@ -883,8 +883,14 @@ def start_oauth_flow() -> dict:
     _OAuthCallbackHandler.auth_code = None
     _OAuthCallbackHandler.error = None
 
-    # Start local server on a random available port
-    server = HTTPServer(('127.0.0.1', 0), _OAuthCallbackHandler)
+    # Try to use a consistent port for OAuth callback (helps with whitelisting in Google Cloud)
+    callback_port = int(os.environ.get('OAUTH_PORT', 5005))
+    try:
+        server = HTTPServer(('127.0.0.1', callback_port), _OAuthCallbackHandler)
+    except Exception:
+        # Fallback to random port if preferred port is busy
+        server = HTTPServer(('127.0.0.1', 0), _OAuthCallbackHandler)
+    
     port = server.server_address[1]
     redirect_uri = f'http://127.0.0.1:{port}'
 
@@ -947,7 +953,12 @@ def get_oauth_url_only(auto_save=False) -> tuple[str, int]:
     _OAuthCallbackHandler.result = None
     _OAuthCallbackHandler.auto_save = auto_save
 
-    server = HTTPServer(('127.0.0.1', 0), _OAuthCallbackHandler)
+    callback_port = int(os.environ.get('OAUTH_PORT', 5005))
+    try:
+        server = HTTPServer(('127.0.0.1', callback_port), _OAuthCallbackHandler)
+    except Exception:
+        server = HTTPServer(('127.0.0.1', 0), _OAuthCallbackHandler)
+        
     port = server.server_address[1]
     redirect_uri = f'http://127.0.0.1:{port}'
 
