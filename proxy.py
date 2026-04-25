@@ -595,4 +595,32 @@ def get_proxy_port() -> int:
 def reload_accounts():
     """Reload the account cycle from DB."""
     _build_account_cycle()
+
+
+def main():
+    import argparse
+    from core import get_proxy_config
+
+    parser = argparse.ArgumentParser(description="AGPM Proxy Server")
+    parser.add_argument("--port", type=int, help="Port to run the proxy on")
+    args = parser.parse_args()
+
+    config = get_proxy_config()
+    port = args.port or config.get("port", 8050)
+
+    print(f"[*] Starting AGPM Proxy on port {port}...")
+    # Rebuild account cycle
     _build_account_cycle()
+
+    try:
+        server = HTTPServer(("0.0.0.0", port), ProxyHandler)
+        print(f"[*] Proxy is ready at http://0.0.0.0:{port}")
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[*] Proxy stopping...")
+    except Exception as e:
+        print(f"[!] Proxy error: {e}")
+
+
+if __name__ == "__main__":
+    main()

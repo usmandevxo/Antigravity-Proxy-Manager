@@ -98,16 +98,34 @@ graph TD
 
 ### Installation
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/usmandevxo/Antigravity-Proxy-Manager.git
-   cd AGPM
-   ```
+### 🚀 Automated Installation (Recommended)
 
-2. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+The easiest way to set up AGPM on any Linux system (local or server) is using the automated installer:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/usmandevxo/Antigravity-Proxy-Manager.git
+cd Antigravity-Proxy-Manager
+
+# 2. Run the installer
+chmod +x install.sh
+./install.sh
+```
+
+### 🗑️ Uninstallation
+
+To remove AGPM and stop all services:
+
+```bash
+chmod +x uninstall.sh
+./uninstall.sh
+```
+
+**What the installer does:**
+- Creates a dedicated virtual environment (`.venv`).
+- Installs the AGPM package and all dependencies.
+- Registers the `agpm` command globally in `~/.local/bin`.
+- Sets up and starts `agpm-web` and `agpm-proxy` as systemd user services (auto-starts on boot).
 
 3. **Setup environment variables:**
    Copy the example and fill in your Google OAuth credentials:

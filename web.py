@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template, send_from_directory, session, redirect, url_for
+from flask import Flask, jsonify, request, render_template, send_from_directory, session, redirect, url_for, Response, stream_with_context
 import core
 import proxy
 import os
@@ -8,6 +8,11 @@ import httpx
 from pathlib import Path
 import socket
 from functools import wraps
+import json
+import uuid
+import time
+import itertools
+import threading
 
 app = Flask(__name__)
 portal_cfg = core.get_portal_config()
@@ -16,6 +21,11 @@ app.secret_key = portal_cfg['secret_key']
 # Ensure Flask trusts proxy headers (X-Forwarded-For, etc.)
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+@app.before_request
+def log_request_info():
+    if not request.path.startswith('/static'):
+        print(f"[*] Request: {request.method} {request.path} | Cookie: {'session' in request.cookies}")
 
 def is_port_in_use(port: int) -> bool:
     try:
@@ -77,13 +87,17 @@ def dashboard(slug):
 @app.route('/api/accounts', methods=['GET'])
 @login_required
 def get_accounts():
-    accounts = core.get_accounts()
-    for acc in accounts:
-        acc.pop('_refresh_token', None)
-        acc.pop('refresh_token', None)
-        acc.pop('access_token', None)
-        acc.pop('quota_json', None)
-    return jsonify({'accounts': accounts})
+    try:
+        accounts = core.get_accounts()
+        for acc in accounts:
+            acc.pop('_refresh_token', None)
+            acc.pop('refresh_token', None)
+            acc.pop('access_token', None)
+            acc.pop('quota_json', None)
+        return jsonify({'accounts': accounts})
+    except Exception as e:
+        print(f"[!] Error in get_accounts: {e}")
+        return jsonify({'accounts': [], 'error': str(e)}), 500
 
 @app.route('/api/accounts/oauth/start', methods=['POST'])
 @login_required
@@ -130,6 +144,172 @@ def get_models():
         'models': models,
         'mapping': proxy.MODEL_MAPPING
     })
+
+# --- Consolidated Proxy Routes ---
+
+@app.route('/v1/models', methods=['GET'])
+def v1_models():
+    """OpenAI-compatible models list."""
+    available = core.get_available_models()
+    models_to_list = available if available else proxy.SUPPORTED_MODELS
+    
+    data = []
+    for model_id in models_to_list:
+        data.append({
+            'id': model_id,
+            'object': 'model',
+            'created': 1770652800,
+            'owned_by': 'antigravity',
+        })
+    # Add common aliases
+    for alias in sorted(proxy.MODEL_MAPPING.keys()):
+        if alias not in models_to_list:
+            data.append({
+                'id': alias,
+                'object': 'model',
+                'created': 1770652800,
+                'owned_by': 'antigravity',
+            })
+    return jsonify({'object': 'list', 'data': data})
+
+@app.route('/v1/chat/completions', methods=['POST', 'OPTIONS'])
+def v1_chat_completions():
+    """OpenAI-compatible chat completions with streaming support."""
+    if request.method == 'OPTIONS':
+        return '', 204
+        
+    try:
+        body = request.get_json()
+    except Exception as e:
+        return jsonify({'error': {'message': f'Invalid request body: {e}', 'type': 'invalid_request_error'}}), 400
+
+    model_name = body.get('model', 'gemini-3-flash')
+    target_model = proxy.resolve_model(model_name)
+    is_stream = body.get('stream', False)
+    
+    # Load balancing / Account selection
+    force_account_email = request.headers.get('X-AGPM-Account')
+    
+    def get_account_to_use():
+        if force_account_email:
+            accounts = core.get_accounts()
+            return next((a for a in accounts if a['email'] == force_account_email), None)
+        return proxy._get_next_account()
+
+    MAX_TRIES = 3
+    last_error = None
+    
+    if force_account_email:
+        MAX_TRIES = 1
+
+    for attempt in range(MAX_TRIES):
+        account = get_account_to_use()
+        if not account:
+            if attempt == 0:
+                return jsonify({'error': {'message': 'No accounts available. Add accounts in the dashboard first.', 'type': 'server_error'}}), 503
+            break
+            
+        access_token = proxy._get_valid_access_token(account)
+        if not access_token:
+            last_error = (jsonify({'error': {'message': f'Failed to get access token for {account["email"]}', 'type': 'auth_error'}}), 503)
+            continue
+
+        project_id = account.get('quota', {}).get('project_id', '')
+        gemini_body = proxy.convert_openai_to_gemini_internal(body, target_model, project_id)
+        
+        if is_stream:
+            return handle_stream_request(gemini_body, access_token, model_name, account)
+        else:
+            success, err_data = handle_non_stream_request(gemini_body, access_token, model_name, account)
+            if success:
+                return jsonify(err_data) # actually contains the success data
+            last_error = (jsonify(err_data['body']), err_data['status'])
+            
+    if last_error:
+        return last_error
+    return jsonify({'error': {'message': 'Request failed after multiple attempts', 'type': 'server_error'}}), 500
+
+def handle_non_stream_request(gemini_body, access_token, model_name, account):
+    url = f'{proxy.INTERNAL_BASE_URL}:generateContent'
+    try:
+        kwargs = core.get_httpx_kwargs()
+        kwargs['timeout'] = 120.0
+        resp = httpx.post(
+            url,
+            json=gemini_body,
+            headers={
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'application/json',
+                'User-Agent': proxy.USER_AGENT,
+            },
+            **kwargs,
+        )
+        if resp.status_code != 200:
+            return False, {'status': resp.status_code, 'body': {'error': {'message': f'Upstream error: {resp.text[:500]}', 'type': 'upstream_error'}}}
+        
+        gemini_resp = resp.json()
+        if 'response' in gemini_resp and 'candidates' not in gemini_resp:
+            gemini_resp = gemini_resp['response']
+        return True, proxy.convert_gemini_to_openai(gemini_resp, model_name)
+    except Exception as e:
+        return False, {'status': 502, 'body': {'error': {'message': str(e), 'type': 'upstream_error'}}}
+
+def handle_stream_request(gemini_body, access_token, model_name, account):
+    url = f'{proxy.INTERNAL_BASE_URL}:streamGenerateContent?alt=sse'
+    
+    def generate():
+        completion_id = f'chatcmpl-{uuid.uuid4().hex[:12]}'
+        try:
+            kwargs = core.get_httpx_kwargs()
+            kwargs['timeout'] = 120.0
+            with httpx.stream(
+                'POST',
+                url,
+                json=gemini_body,
+                headers={
+                    'Authorization': f'Bearer {access_token}',
+                    'Content-Type': 'application/json',
+                    'User-Agent': proxy.USER_AGENT,
+                },
+                **kwargs,
+            ) as resp:
+                if resp.status_code != 200:
+                    yield f"data: {json.dumps({'error': {'message': 'Upstream stream error', 'type': 'upstream_error'}})}\n\n"
+                    return
+
+                buffer = ''
+                for chunk in resp.iter_text():
+                    buffer += chunk
+                    lines = buffer.split('\n')
+                    buffer = lines.pop()
+                    for line in lines:
+                        stripped = line.strip()
+                        if not stripped.startswith('data: '): continue
+                        data_str = stripped[6:]
+                        if data_str == '[DONE]': continue
+                        try:
+                            gemini_chunk = json.loads(data_str)
+                            candidates = gemini_chunk.get('candidates', [])
+                            if not candidates: continue
+                            text = ''.join(p.get('text', '') for p in candidates[0].get('content', {}).get('parts', []) if 'text' in p and not p.get('thought'))
+                            if not text: continue
+                            openai_chunk = {
+                                'id': completion_id, 'object': 'chat.completion.chunk', 'created': int(time.time()),
+                                'model': model_name, 'choices': [{'index': 0, 'delta': {'content': text}, 'finish_reason': None}]
+                            }
+                            yield f"data: {json.dumps(openai_chunk)}\n\n"
+                        except: continue
+                
+                final_chunk = {
+                    'id': completion_id, 'object': 'chat.completion.chunk', 'created': int(time.time()),
+                    'model': model_name, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}]
+                }
+                yield f"data: {json.dumps(final_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': {'message': str(e), 'type': 'upstream_error'}})}\n\n"
+
+    return Response(stream_with_context(generate()), content_type='text/event-stream')
 
 @app.route('/api/models/fetch', methods=['POST'])
 @login_required
@@ -185,6 +365,40 @@ def settings():
                 core.save_admin_creds(data['admin_username'], data['admin_password'])
                 
         return jsonify({'success': True})
+
+@app.route('/api/system/restart', methods=['POST'])
+@login_required
+def system_restart():
+    """Restart the AGPM service via systemctl."""
+    try:
+        # We use a thread to delay the restart so the response can be sent
+        def delayed_restart():
+            time.sleep(1)
+            subprocess.run(["systemctl", "--user", "restart", "agpm-web.service"])
+            
+        threading.Thread(target=delayed_restart).start()
+        return jsonify({'success': True, 'message': 'System is restarting...'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/debug')
+def debug_status():
+    try:
+        admin_user, _ = core.get_admin_creds()
+        accounts = core.get_accounts()
+        portal_cfg = core.get_portal_config()
+        db_exists = os.path.exists(core.DB_PATH)
+        return jsonify({
+            'session': dict(session),
+            'admin_user': admin_user,
+            'account_count': len(accounts),
+            'db_path': core.DB_PATH,
+            'db_exists': db_exists,
+            'portal_port': portal_cfg['port'],
+            'secret_key_loaded': bool(app.secret_key)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'trace': 'Check server logs'})
 
 @app.route('/api/service/status', methods=['GET'])
 @login_required
@@ -245,32 +459,14 @@ WantedBy=default.target
 @app.route('/api/proxy/status', methods=['GET'])
 @login_required
 def proxy_status():
-    config = core.load_config()
-    port = config.get('proxy_port', 8050)
-    is_running_internal = proxy.is_proxy_running()
-    port_used = is_port_in_use(port)
+    portal_cfg = core.get_portal_config()
+    port = portal_cfg['port']
     
     return jsonify({
-        'running_internal': is_running_internal,
-        'port_used': port_used,
+        'running_internal': True,
+        'port_used': True,
         'port': port
     })
-
-@app.route('/api/proxy/start', methods=['POST'])
-@login_required
-def proxy_start():
-    config = core.load_config()
-    port = config.get('proxy_port', 8050)
-    if is_port_in_use(port):
-        return jsonify({'success': False, 'message': f'Port {port} is already in use.'}), 400
-    msg = proxy.start_proxy(port)
-    return jsonify({'success': proxy.is_proxy_running(), 'message': msg})
-
-@app.route('/api/proxy/stop', methods=['POST'])
-@login_required
-def proxy_stop():
-    msg = proxy.stop_proxy()
-    return jsonify({'success': not proxy.is_proxy_running(), 'message': msg})
 
 @app.route('/api/proxy/test', methods=['POST'])
 @login_required
@@ -315,18 +511,13 @@ def proxy_test():
 
 
 
-if __name__ == '__main__':
+def main():
     portal_config = core.get_portal_config()
     proxy_config = core.get_proxy_config()
     
-    # Auto-start proxy if enabled
-    if proxy_config.get('auto_start', True):
-        print(f"[*] Auto-starting proxy on port {proxy_config['port']}...")
-        if not is_port_in_use(proxy_config['port']):
-            msg = proxy.start_proxy(proxy_config['port'])
-            print(f"[*] {msg}")
-        else:
-            print(f"[!] Proxy port {proxy_config['port']} is already in use.")
-
-    print(f"[*] Starting AGPM Web Portal on port {portal_config['port']}...")
+    print(f"[*] Starting AGPM Unified Server on port {portal_config['port']}...")
     app.run(host='0.0.0.0', port=portal_config['port'], debug=False)
+
+
+if __name__ == '__main__':
+    main()

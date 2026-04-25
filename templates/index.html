@@ -154,11 +154,10 @@
                 <div class="ds-header__actions">
                     <div style="display:flex; align-items:center; gap: 12px;">
                         <div style="display:flex; align-items:center; gap:6px;">
-                            <div class="pulse-dot stopped" id="proxy-status-dot"></div>
-                            <span id="proxy-status-text"
-                                style="font-size: var(--text-sm); font-weight: var(--weight-medium);">Checking...</span>
+                            <div class="pulse-dot running" id="system-status-dot"></div>
+                            <span id="system-status-text"
+                                style="font-size: var(--text-sm); font-weight: var(--weight-medium);">System Online</span>
                         </div>
-                        <button id="btn-toggle-proxy" class="btn btn--primary btn--sm">Start Proxy</button>
                     </div>
                 </div>
             </header>
@@ -236,7 +235,7 @@
                         <h3 class="ds-subsection__title">Base URL</h3>
                         <div class="form-input" id="api-base-url"
                             style="background:var(--color-surface); font-family:var(--font-mono); display:flex; align-items:center;">
-                            http://127.0.0.1:8050/v1</div>
+                            http://127.0.0.1:5000/v1</div>
 
                         <h3 class="ds-subsection__title" style="margin-top: var(--space-6);">Authentication</h3>
                         <p class="text-dim">No API key required for local access. All active accounts are used in a
@@ -245,7 +244,7 @@
                         <h3 class="ds-subsection__title" style="margin-top: var(--space-6);">cURL Example</h3>
                         <div class="form-input"
                             style="background:var(--color-surface); font-family:var(--font-mono); white-space: pre-wrap; height: auto; padding: var(--space-4); line-height: 1.5;">
-                            curl http://localhost:8050/v1/chat/completions \
+                            curl http://localhost:5000/v1/chat/completions \
                             -H "Content-Type: application/json" \
                             -H "Authorization: Bearer sk-80703eff26f24993ba93049345c8dda0" \
                             -d '{
@@ -265,10 +264,10 @@
 
                     <div class="ds-grid ds-grid--3">
                         <div class="card" style="padding: var(--space-5);">
-                            <h3 class="ds-subsection__title">Proxy Configuration</h3>
+                            <h3 class="ds-subsection__title">Unified Configuration</h3>
                             <div class="form-group" style="margin-top: var(--space-4);">
-                                <label class="form-label">Proxy Server Port</label>
-                                <input type="number" id="input-proxy-port" class="form-input" value="8050">
+                                <label class="form-label">System Port (Portal & Proxy)</label>
+                                <input type="number" id="input-portal-port" class="form-input" value="5000">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Upstream Proxy URL (Optional)</label>
@@ -276,19 +275,17 @@
                                     placeholder="http://127.0.0.1:7890">
                             </div>
                             <div class="form-group" style="margin-top: var(--space-4);">
-                                <label class="form-checkbox">
-                                    <input type="checkbox" id="input-proxy-autostart"> Auto-Start Proxy with Portal
-                                </label>
+                                <p class="text-dim" style="font-size: var(--text-sm);">The proxy and web dashboard now share the same port for maximum efficiency.</p>
                             </div>
                             <button class="btn btn--primary" id="btn-save-settings"
-                                style="width: 100%; margin-top: var(--space-4);">Save Proxy Config</button>
+                                style="width: 100%; margin-top: var(--space-4);">Save Config</button>
                         </div>
 
                         <div class="card" style="padding: var(--space-5);">
                             <h3 class="ds-subsection__title">Portal Security</h3>
                             <div class="form-group" style="margin-top: var(--space-4);">
-                                <label class="form-label">Portal Port</label>
-                                <input type="number" id="input-portal-port" class="form-input" value="5000">
+                                <label class="form-label">Admin URL Slug</label>
+                                <input type="text" id="input-admin-slug" class="form-input" value="admin">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Admin URL Slug</label>
@@ -316,10 +313,11 @@
                         </div>
 
                         <div class="card" style="padding: var(--space-5);">
-                            <h3 class="ds-subsection__title">System Auto-Start</h3>
+                            <h3 class="ds-subsection__title">System Maintenance</h3>
                             <p class="text-dim"
                                 style="font-size: var(--text-sm); margin-top: var(--space-2); margin-bottom: var(--space-4);">
-                                Automatically start the AGPM Web Portal when the server boots (Systemd Daemon).</p>
+                                Control the AGPM background services and auto-start configuration.</p>
+                            
                             <div class="form-group">
                                 <label class="form-switch">
                                     <input type="checkbox" id="input-service-autostart">
@@ -327,6 +325,17 @@
                                     Start on System Boot
                                 </label>
                             </div>
+                            
+                            <div style="margin-top: var(--space-6); border-top: 1px solid var(--color-border); padding-top: var(--space-4);">
+                                <button class="btn btn--danger btn--outline" id="btn-restart-system" style="width: 100%;">
+                                    <i data-lucide="rotate-ccw" style="width: 16px; height: 16px; margin-right: 8px;"></i>
+                                    Restart AGPM Services
+                                </button>
+                                <p class="text-dim" style="font-size: var(--text-xs); margin-top: var(--space-2); text-align: center;">
+                                    Restarting will briefly disconnect you from the dashboard.
+                                </p>
+                            </div>
+                            
                             <p class="text-dim" style="font-size: var(--text-sm); margin-top: var(--space-3);"
                                 id="service-status-msg"></p>
                         </div>

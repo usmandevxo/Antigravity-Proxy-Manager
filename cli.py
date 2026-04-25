@@ -19,6 +19,11 @@ import proxy
 
 console = Console()
 
+def is_port_in_use(port):
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('127.0.0.1', port)) == 0
+
 def show_status():
     """Show overall system status."""
     config = core.load_config()
@@ -31,11 +36,6 @@ def show_status():
     proxy_status_text = "[bold green]Running[/bold green]" if proxy_running else "[bold red]Stopped[/bold red]"
     
     # Portal Status (check if port is in use as a proxy for running)
-    import socket
-    def is_port_in_use(port):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            return s.connect_ex(('127.0.0.1', port)) == 0
-            
     portal_running = is_port_in_use(portal_cfg['port'])
     portal_status_text = "[bold green]Running[/bold green]" if portal_running else "[bold red]Stopped[/bold red]"
 
@@ -44,14 +44,14 @@ def show_status():
     status_table.add_column("Status", style="white")
     status_table.add_column("Port", style="magenta")
     
-    status_table.add_row("Proxy Server", proxy_status_text, str(proxy_cfg['port']))
-    status_table.add_row("Web Portal", portal_status_text, str(portal_cfg['port']))
+    status_table.add_row("AGPM Unified Server", portal_status_text, str(portal_cfg['port']))
     
     console.print(Panel(status_table, expand=False, border_style="bold blue"))
     
     # Account Summary
     active_count = len([a for a in accounts if a['status'] == 'active'])
     rprint(f"  [bold]Accounts:[/bold] {len(accounts)} total, {active_count} active")
+    rprint(f"  [bold]API Endpoint:[/bold] http://127.0.0.1:{portal_cfg['port']}/v1")
 
 def list_accounts():
     """List all accounts in a table."""
@@ -179,6 +179,16 @@ def manage_proxy(action):
         # For now, we'll just report that CLI-managed proxy is stopped
         msg = proxy.stop_proxy()
         rprint(f"[bold yellow]{msg}[/bold yellow]")
+
+def restart_services():
+    """Restart systemd services."""
+    import subprocess
+    try:
+        with console.status("[bold yellow]Restarting AGPM services..."):
+            subprocess.run(["systemctl", "--user", "restart", "agpm-web.service"], check=True)
+        rprint("[bold green]Successfully restarted AGPM services![/bold green]")
+    except Exception as e:
+        rprint(f"[bold red]Failed to restart services: {e}[/bold red]")
 
 def register_command():
     """Register 'agpm' as a global command in ~/.local/bin."""
@@ -318,10 +328,15 @@ def main():
     proxy_parser = subparsers.add_parser("proxy", help="Manage proxy server")
     proxy_parser.add_argument("action", choices=["start", "stop"], help="Action to perform")
 
+    # Restart command
+    subparsers.add_parser("restart", help="Restart all AGPM services")
+
     args = parser.parse_args()
 
     if args.command == "status":
         show_status()
+    elif args.command == "restart":
+        restart_services()
     elif args.command == "register":
         register_command()
     elif args.command == "accounts":

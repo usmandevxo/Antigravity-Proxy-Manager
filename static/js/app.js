@@ -41,66 +41,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
     };
 
-    // --- Proxy Status & Toggle ---
-    const updateProxyStatus = async () => {
+    // --- System Status ---
+    const updateSystemStatus = async () => {
         try {
             const res = await fetch('/api/proxy/status');
             const data = await res.json();
-            const dot = document.getElementById('proxy-status-dot');
-            const text = document.getElementById('proxy-status-text');
-            const btn = document.getElementById('btn-toggle-proxy');
+            const dot = document.getElementById('system-status-dot');
+            const text = document.getElementById('system-status-text');
 
             if (data.port_used || data.running_internal) {
                 dot.className = 'pulse-dot running';
-                text.textContent = `Running on ${data.port}`;
-                btn.textContent = 'Stop Proxy';
-                btn.className = 'btn btn--danger btn--sm';
-                btn.onclick = stopProxy;
+                text.textContent = `System Online (Port ${data.port})`;
             } else {
                 dot.className = 'pulse-dot stopped';
-                text.textContent = `Stopped (${data.port})`;
-                btn.textContent = 'Start Proxy';
-                btn.className = 'btn btn--primary btn--sm';
-                btn.onclick = startProxy;
+                text.textContent = `Offline? (Port ${data.port})`;
             }
+            
+            // Update API Base URL display if it exists
+            const apiBase = document.getElementById('api-base-url');
+            if (apiBase) apiBase.textContent = `http://${window.location.hostname}:${data.port}/v1`;
         } catch (e) {
-            console.error('Failed to get proxy status', e);
-        }
-    };
-
-    const startProxy = async () => {
-        try {
-            const res = await fetch('/api/proxy/start', { method: 'POST' });
-            const data = await res.json();
-            if (data.success) {
-                showToast(data.message, 'success');
-            } else {
-                showToast(data.message, 'error');
-            }
-            updateProxyStatus();
-        } catch (e) {
-            showToast('Failed to start proxy', 'error');
-        }
-    };
-
-    const stopProxy = async () => {
-        try {
-            const res = await fetch('/api/proxy/stop', { method: 'POST' });
-            const data = await res.json();
-            if (data.success) {
-                showToast(data.message, 'success');
-            } else {
-                showToast(data.message, 'error');
-            }
-            updateProxyStatus();
-        } catch (e) {
-            showToast('Failed to stop proxy', 'error');
+            console.error('Failed to get system status', e);
         }
     };
 
     // Initial status check
-    updateProxyStatus();
-    setInterval(updateProxyStatus, 5000); // poll every 5s
+    updateSystemStatus();
+    setInterval(updateSystemStatus, 10000); // poll every 10s
 
     // --- Accounts Management ---
     const loadAccounts = async () => {
@@ -386,10 +353,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch('/api/settings');
             const data = await res.json();
-            document.getElementById('input-proxy-port').value = data.proxy_port || 8050;
-            document.getElementById('input-upstream-proxy').value = data.upstream_proxy || '';
-            document.getElementById('input-proxy-autostart').checked = data.proxy_auto_start !== false;
             document.getElementById('input-portal-port').value = data.portal_port || 5000;
+            document.getElementById('input-upstream-proxy').value = data.upstream_proxy || '';
             document.getElementById('input-admin-slug').value = data.admin_slug || 'admin';
             document.getElementById('input-admin-username').value = data.admin_username || 'admin';
         } catch (e) {}
@@ -412,24 +377,23 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     document.getElementById('btn-save-settings').addEventListener('click', async () => {
-        const port = document.getElementById('input-proxy-port').value;
+        const port = document.getElementById('input-portal-port').value;
         const upstream = document.getElementById('input-upstream-proxy').value;
-        const autoStart = document.getElementById('input-proxy-autostart').checked;
         
         try {
             const res = await fetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    proxy_port: parseInt(port), 
-                    upstream_proxy: upstream,
-                    proxy_auto_start: autoStart
+                    portal_port: parseInt(port), 
+                    proxy_port: parseInt(port), // sync them
+                    upstream_proxy: upstream
                 })
             });
             const data = await res.json();
             if (data.success) {
-                showToast('Proxy settings saved', 'success');
-                updateProxyStatus();
+                showToast('Settings saved. Restart required for port changes.', 'success');
+                updateSystemStatus();
             }
         } catch (e) {
             showToast('Failed to save settings', 'error');
@@ -437,7 +401,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('btn-save-security').addEventListener('click', async () => {
-        const portalPort = document.getElementById('input-portal-port').value;
         const adminSlug = document.getElementById('input-admin-slug').value;
         const username = document.getElementById('input-admin-username').value;
         const password = document.getElementById('input-admin-password').value;
@@ -447,7 +410,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    portal_port: parseInt(portalPort), 
                     admin_slug: adminSlug,
                     admin_username: username,
                     admin_password: password
@@ -455,11 +417,50 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (data.success) {
-                showToast('Security settings updated. Restart may be required for port/slug changes.', 'success');
+                showToast('Security settings updated. Restart required for slug changes.', 'success');
                 if (password) document.getElementById('input-admin-password').value = '';
             }
         } catch (e) {
             showToast('Failed to update security', 'error');
+        }
+    });
+
+    // --- Restart System ---
+    document.getElementById('btn-restart-system').addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to restart the AGPM services? This will take a few seconds.')) return;
+        
+        const btn = document.getElementById('btn-restart-system');
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Restarting...';
+        lucide.createIcons();
+        
+        try {
+            const res = await fetch('/api/system/restart', { method: 'POST' });
+            const data = await res.json();
+            
+            if (data.success) {
+                showToast('Restart signal sent. Dashboard will reload soon.', 'success');
+                // Poll for availability
+                setTimeout(() => {
+                    const checkInterval = setInterval(async () => {
+                        try {
+                            const ping = await fetch('/api/settings');
+                            if (ping.ok) {
+                                clearInterval(checkInterval);
+                                location.reload();
+                            }
+                        } catch(e) {}
+                    }, 2000);
+                }, 3000);
+            } else {
+                showToast(data.message, 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="rotate-ccw"></i> Restart AGPM Services';
+                lucide.createIcons();
+            }
+        } catch (e) {
+            showToast('Restart initiated. Reloading...', 'success');
+            setTimeout(() => location.reload(), 5000);
         }
     });
 
