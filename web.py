@@ -180,26 +180,19 @@ def v1_models():
     available = core.get_available_models()
     models_to_list = available if available else proxy.SUPPORTED_MODELS
     
+    models = core.KNOWN_MODELS
     data = []
-    for model_id in models_to_list:
+    for m_id, provider in models:
         data.append({
-            'id': model_id,
+            'id': m_id,
             'object': 'model',
-            'created': 1770652800,
-            'owned_by': 'antigravity',
+            'created': int(time.time()),
+            'owned_by': provider.lower()
         })
-    # Add common aliases
-    for alias in sorted(proxy.MODEL_MAPPING.keys()):
-        if alias not in models_to_list:
-            data.append({
-                'id': alias,
-                'object': 'model',
-                'created': 1770652800,
-                'owned_by': 'antigravity',
-            })
     return jsonify({'object': 'list', 'data': data})
 
 @app.route('/v1/chat/completions', methods=['POST', 'OPTIONS'])
+@app.route('/v1/chat/completions/', methods=['POST', 'OPTIONS'])
 def v1_chat_completions():
     """OpenAI-compatible chat completions with streaming support."""
     if request.method == 'OPTIONS':
