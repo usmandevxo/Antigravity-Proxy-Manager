@@ -43,6 +43,53 @@ AGPM supports a wide range of models, mapping standard aliases to internal high-
 
 ---
 
+## 🏗️ Project Structure
+
+```text
+.
+├── core.py              # Central logic: Database, Encryption, OAuth & Quota
+├── proxy.py             # High-performance OpenAI-compatible proxy server
+├── web.py               # Flask-based administrative web portal
+├── data/                # [Ignored] SQLite DB, keys, and local config
+├── docs/                # Documentation & Screenshots
+├── static/              # Frontend assets (CSS/JS) for the portal
+├── templates/           # HTML templates for the UI
+├── requirements.txt     # Python dependencies
+└── .env                 # [Ignored] Google API credentials
+```
+
+---
+
+## 🔄 Working Flow
+
+The following diagram illustrates how AGPM handles requests from your applications to the Gemini backend:
+
+```mermaid
+graph TD
+    A[Application] -- OpenAI Request --> B[AGPM Proxy :8050]
+    B -- Load Balancer --> C{Account Fleet}
+    C -- Account 1 --> D[Gemini API]
+    C -- Account 2 --> E[Gemini API]
+    C -- Account N --> F[Gemini API]
+    D & E & F -- Response --> B
+    B -- Streamed Response --> A
+    
+    subgraph Management
+    G[Admin Portal :5000] -- Config --> H[(SQLite DB)]
+    G -- OAuth --> I[Google OAuth]
+    I -- Tokens --> H
+    H -- Sync --> B
+    end
+```
+
+1. **Setup**: Add your Google accounts via the Admin Portal (Port 5000).
+2. **Sync**: AGPM encrypts tokens and monitors real-time quotas.
+3. **Intercept**: Your apps send requests to the Proxy (Port 8050) using standard OpenAI SDKs.
+4. **Translate**: The Proxy selects the best available account and translates the request to Gemini's internal format.
+5. **Stream**: Responses are streamed back to your app with zero latency.
+
+---
+
 ## 📦 Quick Start
 
 ### Prerequisites
