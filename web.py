@@ -13,6 +13,10 @@ app = Flask(__name__)
 portal_cfg = core.get_portal_config()
 app.secret_key = portal_cfg['secret_key']
 
+# Ensure Flask trusts proxy headers (X-Forwarded-For, etc.)
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 def is_port_in_use(port: int) -> bool:
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -216,7 +220,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory={cwd}
+WorkingDirectory="{cwd}"
 ExecStart="{python_exec}" "{web_script}"
 Restart=on-failure
 RestartSec=5
@@ -317,7 +321,12 @@ if __name__ == '__main__':
     
     # Auto-start proxy if enabled
     if proxy_config.get('auto_start', True):
+        print(f"[*] Auto-starting proxy on port {proxy_config['port']}...")
         if not is_port_in_use(proxy_config['port']):
-            proxy.start_proxy(proxy_config['port'])
+            msg = proxy.start_proxy(proxy_config['port'])
+            print(f"[*] {msg}")
+        else:
+            print(f"[!] Proxy port {proxy_config['port']} is already in use.")
 
+    print(f"[*] Starting AGPM Web Portal on port {portal_config['port']}...")
     app.run(host='0.0.0.0', port=portal_config['port'], debug=False)

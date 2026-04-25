@@ -886,13 +886,19 @@ def start_oauth_flow() -> dict:
     # Try to use a consistent port for OAuth callback (helps with whitelisting in Google Cloud)
     callback_port = int(os.environ.get('OAUTH_PORT', 5005))
     try:
-        server = HTTPServer(('127.0.0.1', callback_port), _OAuthCallbackHandler)
+        server = HTTPServer(('0.0.0.0', callback_port), _OAuthCallbackHandler)
     except Exception:
         # Fallback to random port if preferred port is busy
-        server = HTTPServer(('127.0.0.1', 0), _OAuthCallbackHandler)
+        server = HTTPServer(('0.0.0.0', 0), _OAuthCallbackHandler)
     
     port = server.server_address[1]
-    redirect_uri = f'http://127.0.0.1:{port}'
+    
+    # Support custom redirect URI for server deployments
+    env_redirect = os.environ.get('OAUTH_REDIRECT_URI', '').strip()
+    if env_redirect:
+        redirect_uri = env_redirect
+    else:
+        redirect_uri = f'http://127.0.0.1:{port}'
 
     # Build auth URL
     params = {
@@ -955,12 +961,18 @@ def get_oauth_url_only(auto_save=False) -> tuple[str, int]:
 
     callback_port = int(os.environ.get('OAUTH_PORT', 5005))
     try:
-        server = HTTPServer(('127.0.0.1', callback_port), _OAuthCallbackHandler)
+        server = HTTPServer(('0.0.0.0', callback_port), _OAuthCallbackHandler)
     except Exception:
-        server = HTTPServer(('127.0.0.1', 0), _OAuthCallbackHandler)
+        server = HTTPServer(('0.0.0.0', 0), _OAuthCallbackHandler)
         
     port = server.server_address[1]
-    redirect_uri = f'http://127.0.0.1:{port}'
+    
+    # Support custom redirect URI for server deployments
+    env_redirect = os.environ.get('OAUTH_REDIRECT_URI', '').strip()
+    if env_redirect:
+        redirect_uri = env_redirect
+    else:
+        redirect_uri = f'http://127.0.0.1:{port}'
 
     params = {
         'client_id': CLIENT_ID,
