@@ -239,6 +239,48 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.auth_url) {
                 window.open(data.auth_url, '_blank');
                 modal.classList.add('active');
+
+                // Manual code submission for server deployments
+                const modalBody = modal.querySelector('.card');
+                if (!document.getElementById('manual-code-container')) {
+                    const div = document.createElement('div');
+                    div.id = 'manual-code-container';
+                    div.style.marginTop = 'var(--space-6)';
+                    div.style.paddingTop = 'var(--space-4)';
+                    div.style.borderTop = '1px solid var(--color-border)';
+                    div.innerHTML = `
+                        <p class="text-dim" style="font-size: var(--text-sm); margin-bottom: var(--space-3);">Redirect failed? Paste the code here:</p>
+                        <div style="display:flex; gap: 8px;">
+                            <input type="text" id="input-oauth-code" class="form-input" style="flex:1" placeholder="Paste code from URL here...">
+                            <button class="btn btn--primary btn--sm" id="btn-submit-code">Save</button>
+                        </div>
+                    `;
+                    modalBody.appendChild(div);
+                    
+                    document.getElementById('btn-submit-code').addEventListener('click', async () => {
+                        const code = document.getElementById('input-oauth-code').value.trim();
+                        if (!code) return;
+                        
+                        try {
+                            const cbRes = await fetch('/api/accounts/oauth/callback', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ code, port: data.port })
+                            });
+                            const cbData = await cbRes.json();
+                            if (cbData.success) {
+                                showToast('Account added successfully!', 'success');
+                                clearInterval(oauthPollInterval);
+                                modal.classList.remove('active');
+                                loadAccounts();
+                            } else {
+                                showToast('Failed to add account with that code.', 'error');
+                            }
+                        } catch (e) {
+                            showToast('Error submitting code', 'error');
+                        }
+                    });
+                }
                 
                 oauthPollInterval = setInterval(async () => {
                     const checkRes = await fetch(`/api/accounts/oauth/check/${data.port}`);

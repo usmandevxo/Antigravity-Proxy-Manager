@@ -89,27 +89,32 @@ def decrypt_value(encrypted: str) -> str | None:
 
 def _init_db():
     """Create the AGPM database and accounts table if they don't exist."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS accounts (
-            id TEXT PRIMARY KEY,
-            provider TEXT NOT NULL DEFAULT 'google',
-            email TEXT NOT NULL UNIQUE,
-            name TEXT DEFAULT '',
-            refresh_token TEXT NOT NULL,
-            access_token TEXT DEFAULT '',
-            token_expiry INTEGER DEFAULT 0,
-            quota_json TEXT DEFAULT '{}',
-            proxy_url TEXT DEFAULT '',
-            status TEXT DEFAULT 'active',
-            is_active INTEGER DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            last_used INTEGER NOT NULL
-        )
-    """)
-    conn.commit()
-    conn.close()
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS accounts (
+                id TEXT PRIMARY KEY,
+                provider TEXT NOT NULL DEFAULT 'google',
+                email TEXT NOT NULL UNIQUE,
+                name TEXT DEFAULT '',
+                refresh_token TEXT NOT NULL,
+                access_token TEXT DEFAULT '',
+                token_expiry INTEGER DEFAULT 0,
+                quota_json TEXT DEFAULT '{}',
+                proxy_url TEXT DEFAULT '',
+                status TEXT DEFAULT 'active',
+                is_active INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                last_used INTEGER NOT NULL
+            )
+        """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[!] Database initialization failed: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def _get_conn():
@@ -891,11 +896,7 @@ def start_oauth_flow() -> dict:
     port = server.server_address[1]
     
     # Support custom redirect URI for server deployments
-    env_redirect = os.environ.get('OAUTH_REDIRECT_URI', '').strip()
-    if env_redirect:
-        redirect_uri = env_redirect
-    else:
-        redirect_uri = f'http://127.0.0.1:{port}'
+    redirect_uri = f'http://127.0.0.1:{port}'
 
     # Build auth URL
     params = {
@@ -945,7 +946,7 @@ def start_oauth_flow() -> dict:
     return result
 
 
-def get_oauth_url_only(auto_save=False) -> tuple[str, int]:
+def get_oauth_url_only(auto_save=False, redirect_uri=None) -> tuple[str, int]:
     """
     Generate an OAuth URL and start the callback server in a background thread.
     Returns (auth_url, port). The server waits for one request then stops.
@@ -965,10 +966,7 @@ def get_oauth_url_only(auto_save=False) -> tuple[str, int]:
     port = server.server_address[1]
     
     # Support custom redirect URI for server deployments
-    env_redirect = os.environ.get('OAUTH_REDIRECT_URI', '').strip()
-    if env_redirect:
-        redirect_uri = env_redirect
-    else:
+    if not redirect_uri:
         redirect_uri = f'http://127.0.0.1:{port}'
 
     params = {

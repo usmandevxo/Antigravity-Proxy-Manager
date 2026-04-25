@@ -90,20 +90,47 @@ def get_accounts():
     try:
         accounts = core.get_accounts()
         for acc in accounts:
+            # Strip sensitive tokens from frontend response
             acc.pop('_refresh_token', None)
             acc.pop('refresh_token', None)
             acc.pop('access_token', None)
             acc.pop('quota_json', None)
         return jsonify({'accounts': accounts})
     except Exception as e:
-        print(f"[!] Error in get_accounts: {e}")
-        return jsonify({'accounts': [], 'error': str(e)}), 500
+        print(f"[!] Critical error in get_accounts: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'accounts': [], 'error': 'Database or internal error', 'details': str(e)}), 500
 
 @app.route('/api/accounts/oauth/start', methods=['POST'])
 @login_required
 def oauth_start():
+    # Detect the current domain to help with OAuth redirects
+    # If using a proxy, the Host header should be the public domain
+    host_url = request.host_url.rstrip('/')
+    
+    # Try to use the current host for redirect if not 127.0.0.1
+    redirect_uri = None
+    if '127.0.0.1' not in host_url and 'localhost' not in host_url:
+        # On a server, the redirect should ideally go back to the server's OAuth port
+        # but Google requires exact matches. Most users whitelist http://127.0.0.1:5005
+        # for local. For server, we'll default to 127.0.0.1 unless configured otherwise.
+        pass
+
     auth_url, port = core.get_oauth_url_only(auto_save=True)
     return jsonify({'auth_url': auth_url, 'port': port})
+
+@app.route('/api/accounts/oauth/callback', methods=['POST'])
+@login_required
+def oauth_manual_callback():
+    data = request.json
+    code = data.get('code')
+    port = data.get('port')
+    if not code or not port:
+        return jsonify({'success': False, 'error': 'Missing code or port'}), 400
+    
+    success = core.handle_manual_callback(code, port)
+    return jsonify({'success': success})
 
 @app.route('/api/accounts/oauth/check/<int:port>', methods=['GET'])
 @login_required
