@@ -122,8 +122,11 @@ systemctl --user restart agpm-web.service
 
 echo -e "\n${GREEN}✅ AGPM Installation Complete!${NC}"
 echo -e "${CYAN}------------------------------${NC}"
-echo -e "Unified Dashboard & API: ${YELLOW}http://localhost:5000${NC}"
-echo -e "CLI Command: ${YELLOW}agpm${NC}"
+echo -e "Dashboard URL: ${YELLOW}http://localhost:$PORTAL_PORT/$ADMIN_SLUG${NC}"
+if [ "$PUBLIC_URL" != "http://localhost:$PORTAL_PORT" ]; then
+    echo -e "Public URL:    ${YELLOW}$PUBLIC_URL/$ADMIN_SLUG${NC}"
+fi
+echo -e "CLI Command:   ${YELLOW}agpm${NC}"
 echo -e "${CYAN}------------------------------${NC}"
 echo -e "If 'agpm' command is not found, ensure ~/.local/bin is in your PATH."
 echo -e "Add this to your .bashrc: ${YELLOW}export PATH=\$PATH:\$HOME/.local/bin${NC}"
