@@ -18,11 +18,7 @@ import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 import httpx
-from dotenv import load_dotenv
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-# Load environment variables from .env
-load_dotenv()
 
 # --- Paths ---
 
@@ -33,9 +29,10 @@ CONFIG_PATH = os.path.join(DATA_DIR, 'config.json')
 KEY_PATH = os.path.join(DATA_DIR, '.mk')
 
 # --- API Constants ---
-
-CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
-CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+# Hardcoded for direct use without .env dependency
+CLIENT_ID = '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com'
+CLIENT_SECRET = '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'
+OAUTH_PORT = 5005
 USER_AGENT = 'antigravity/1.11.3 Linux/x86_64'
 URL_TOKEN = 'https://oauth2.googleapis.com/token'
 URL_QUOTA = 'https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels'
@@ -883,8 +880,8 @@ def start_oauth_flow() -> dict:
     _OAuthCallbackHandler.auth_code = None
     _OAuthCallbackHandler.error = None
 
-    # Try to use a consistent port for OAuth callback (helps with whitelisting in Google Cloud)
-    callback_port = int(os.environ.get('OAUTH_PORT', 5005))
+    # Use fixed port for OAuth callback
+    callback_port = OAUTH_PORT
     try:
         server = HTTPServer(('0.0.0.0', callback_port), _OAuthCallbackHandler)
     except Exception:
@@ -959,7 +956,7 @@ def get_oauth_url_only(auto_save=False) -> tuple[str, int]:
     _OAuthCallbackHandler.result = None
     _OAuthCallbackHandler.auto_save = auto_save
 
-    callback_port = int(os.environ.get('OAUTH_PORT', 5005))
+    callback_port = OAUTH_PORT
     try:
         server = HTTPServer(('0.0.0.0', callback_port), _OAuthCallbackHandler)
     except Exception:

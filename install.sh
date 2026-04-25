@@ -40,15 +40,7 @@ pip install -e .
 # Create data directory
 mkdir -p data
 
-# Check for .env file
-if [ ! -f ".env" ]; then
-    if [ -f ".env.example" ]; then
-        echo -e "[*] Creating .env from .env.example..."
-        cp .env.example .env
-    else
-        echo -e "${YELLOW}[!] Warning: .env file not found. You may need to configure it manually.${NC}"
-    fi
-fi
+# Configuration is now hardcoded in the core.py for convenience.
 
 # Register CLI command globally in ~/.local/bin
 echo -e "[*] Registering 'agpm' command..."
