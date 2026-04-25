@@ -100,7 +100,7 @@ graph TD
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/AGPM.git
+   git clone https://github.com/usmandevxo/Antigravity-Proxy-Manager.git
    cd AGPM
    ```
 
@@ -144,6 +144,43 @@ As AGPM runs as a user-level service, use the `--user` flag:
 
 > [!TIP]
 > To view live logs, use: `journalctl --user -u agpm-web.service -f`
+
+---
+
+## 💻 CLI Usage
+
+AGPM provides a powerful Command Line Interface for direct management without the web portal.
+
+### Quick Commands
+
+| Command | Description |
+| :--- | :--- |
+| `python3 cli.py register` | Register `agpm` as a global system command |
+| `agpm status` | Show overall system and proxy status |
+| `agpm accounts list` | List all accounts in your fleet |
+| `agpm accounts add` | Add a new account manually via refresh token |
+| `agpm accounts active <email>` | Set a specific account as primary |
+| `agpm accounts refresh` | Force refresh quotas for all accounts |
+| `agpm proxy start` | Start the proxy server in the current terminal |
+
+### Examples
+
+**Check System Health:**
+```bash
+python3 cli.py status
+```
+
+**Manage Accounts:**
+```bash
+# List all accounts
+python3 cli.py accounts list
+
+# Refresh a specific account
+python3 cli.py accounts refresh --email user@example.com
+
+# Remove an account
+python3 cli.py accounts remove user@example.com
+```
 
 ---
 
@@ -195,5 +232,5 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ---
 
 <p align="center">
-  Built with ❤️ by UsmanDevX
+  Built with ❤️ by [Usman](https://github.com/usmandevxo)
 </p>

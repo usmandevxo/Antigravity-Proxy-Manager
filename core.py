@@ -602,20 +602,193 @@ class _OAuthCallbackHandler(BaseHTTPRequestHandler):
         if test_success:
             self._send_status_page(True, "Connection successful! You can close this tab and return to the portal.")
         else:
-            self._send_status_page(False, f"Account added but connection failed: {test_msg}<br>Status marked as rejected.")
+            self._send_status_page(False, f"Account Verification Failed, Try to add Mobile Number in Google Account and retry")
 
     def _send_status_page(self, success: bool, message: str):
-        title = "Login Successful" if success else "Login Failed"
-        icon = "✅" if success else "❌"
-        color = "#00d4aa" if success else "#ff6b6b"
-        html = f"""<!DOCTYPE html><html><head><title>AGPM - {title}</title>
-        <style>body{{font-family:system-ui;display:flex;justify-content:center;align-items:center;
-        height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0}}
-        .card{{text-align:center;padding:40px;border-radius:16px;background:#16213e;
-        box-shadow:0 8px 32px rgba(0,0,0,.3);max-width:500px}}
-        h1{{color:{color};margin-bottom:10px}}p{{color:#8892b0;line-height:1.5}}</style></head>
-        <body><div class="card"><h1>{icon} {title}</h1>
-        <p>{message}</p></div></body></html>"""
+        title = "Verification Successful" if success else "Verification Failed"
+        lucide_icon = "check-circle" if success else "alert-circle"
+        status_class = "success" if success else "error"
+        
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGPM - {title}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {{
+            --color-primary: #072C2C;
+            --color-secondary: #FF5F03;
+            --color-surface: #EDEADE;
+            --color-surface-raised: #FFFFFF;
+            --color-text: #111827;
+            --color-text-secondary: #4B5563;
+            --color-success: #16A34A;
+            --color-danger: #DC2626;
+            --font-primary: 'Ubuntu', sans-serif;
+            --font-display: 'Oswald', sans-serif;
+        }}
+        
+        body {{
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-primary);
+            background-color: var(--color-surface);
+            color: var(--color-text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }}
+        
+        .card {{
+            background: var(--color-surface-raised);
+            padding: 3rem;
+            border-radius: 1.25rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            max-width: 480px;
+            width: 90%;
+            text-align: center;
+            border: 1px solid rgba(0,0,0,0.05);
+            animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }}
+        
+        @keyframes fadeIn {{
+            from {{ opacity: 0; transform: translateY(20px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        
+        .status-icon {{
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }}
+        
+        .status-icon.success {{
+            background-color: rgba(22, 163, 74, 0.1);
+            color: var(--color-success);
+        }}
+        
+        .status-icon.error {{
+            background-color: rgba(220, 38, 38, 0.1);
+            color: var(--color-danger);
+        }}
+        
+        h1 {{
+            font-family: var(--font-display);
+            font-size: 2.25rem;
+            text-transform: uppercase;
+            margin: 0 0 1rem;
+            letter-spacing: 0.5px;
+            color: var(--color-primary);
+        }}
+        
+        p {{
+            font-size: 1.125rem;
+            line-height: 1.6;
+            color: var(--color-text-secondary);
+            margin-bottom: 2.5rem;
+        }}
+        
+        .btn {{
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            background: var(--color-primary);
+            color: white;
+            padding: 1rem 2.5rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            cursor: pointer;
+            font-family: var(--font-primary);
+            width: 100%;
+            font-size: 1rem;
+        }}
+        
+        .btn:hover {{
+            background: #0E4A4A;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(7, 44, 44, 0.2);
+        }}
+        
+        .btn:active {{
+            transform: translateY(0);
+        }}
+        
+        .brand {{
+            margin-bottom: 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }}
+        
+        .logo-mark {{
+            width: 40px;
+            height: 40px;
+            background: var(--color-secondary);
+            border-radius: 0.75rem;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-display);
+            font-weight: bold;
+            font-size: 1.5rem;
+            box-shadow: 0 4px 12px rgba(255, 95, 3, 0.3);
+        }}
+        
+        .brand-name {{
+            font-family: var(--font-display);
+            font-weight: bold;
+            font-size: 1.5rem;
+            letter-spacing: 1.5px;
+            color: var(--color-primary);
+        }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="brand">
+            <div class="logo-mark">A</div>
+            <div class="brand-name">AGPM</div>
+        </div>
+        
+        <div class="status-icon {status_class}">
+            <i data-lucide="{lucide_icon}" style="width: 48px; height: 48px;"></i>
+        </div>
+        
+        <h1>{title}</h1>
+        <p>{message}</p>
+        
+        <button class="btn" onclick="window.close()">
+            <span>Return to Console</span>
+            <i data-lucide="arrow-right" style="width: 20px; height: 20px;"></i>
+        </button>
+    </div>
+    <script>
+        lucide.createIcons();
+        // Fallback for button if window.close() fails
+        document.querySelector('.btn').addEventListener('click', function() {{
+            setTimeout(function() {{
+                if (!window.closed) {{
+                    alert("Verification complete. You can now close this tab manually.");
+                }}
+            }}, 500);
+        }});
+    </script>
+</body>
+</html>"""
         self.send_response(200 if success else 400)
         self.send_header('Content-Type', 'text/html')
         self.end_headers()

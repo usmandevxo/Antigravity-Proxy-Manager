@@ -211,7 +211,7 @@ def service_toggle():
             cwd = os.path.dirname(web_script)
 
             service_content = f"""[Unit]
-Description=AGPM Web Portal by UsmanDevX
+Description=AGPM Web Portal by Usman
 After=network.target
 
 [Service]
