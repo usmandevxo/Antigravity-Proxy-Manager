@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request, render_template, send_from_directory, session, redirect, url_for, Response, stream_with_context
 from werkzeug.middleware.proxy_fix import ProxyFix
+import urllib.parse
 import core
 import proxy
 import os
@@ -20,9 +21,15 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 portal_cfg = core.get_portal_config()
 app.secret_key = portal_cfg['secret_key']
 
-# Ensure Flask trusts proxy headers (X-Forwarded-For, etc.)
-from werkzeug.middleware.proxy_fix import ProxyFix
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+# Session cookie configuration for domain/reverse proxy access
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+# If serving over HTTPS, set SESSION_COOKIE_SECURE = True
+public_url = portal_cfg.get('public_url', '')
+if public_url.startswith('https://'):
+    app.config['SESSION_COOKIE_SECURE'] = True
+else:
+    app.config['SESSION_COOKIE_SECURE'] = False
 
 @app.before_request
 def log_request_info():
