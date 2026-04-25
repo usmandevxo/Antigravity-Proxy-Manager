@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- System Status ---
     const updateSystemStatus = async () => {
         try {
-            const res = await fetch('/api/proxy/status');
+            const res = await fetch('/d-api/proxy/status');
             const data = await res.json();
             const dot = document.getElementById('system-status-dot');
             const text = document.getElementById('system-status-text');
@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-dim">Loading accounts...</td></tr>';
 
         try {
-            const res = await fetch('/api/accounts');
+            const res = await fetch('/d-api/accounts');
             if (res.status === 401) {
                 window.location.href = '/login';
                 return;
@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.refreshAccount = async (email) => {
         showToast(`Refreshing ${email}...`, 'success');
         try {
-            const res = await fetch(`/api/accounts/${email}/refresh`, { method: 'POST' });
+            const res = await fetch(`/d-api/accounts/${email}/refresh`, { method: 'POST' });
             const data = await res.json();
             if (data.success) {
                 showToast(data.message, 'success');
@@ -147,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.removeAccount = async (email) => {
         if (!confirm(`Are you sure you want to remove ${email}?`)) return;
         try {
-            const res = await fetch(`/api/accounts/${email}`, { method: 'DELETE' });
+            const res = await fetch(`/d-api/accounts/${email}`, { method: 'DELETE' });
             const data = await res.json();
             if (data.success) {
                 showToast('Account removed', 'success');
@@ -161,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     document.getElementById('btn-refresh-all').addEventListener('click', async () => {
-        const res = await fetch('/api/accounts');
+        const res = await fetch('/d-api/accounts');
         const data = await res.json();
         for (const acc of data.accounts) {
             await window.refreshAccount(acc.email);
@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resultText.textContent = 'Processing request through proxy...';
 
         try {
-            const res = await fetch('/api/proxy/test', {
+            const res = await fetch('/d-api/proxy/test', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: currentTestEmail, prompt, model })
@@ -237,7 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('btn-add-account').addEventListener('click', async () => {
         try {
-            const res = await fetch('/api/accounts/oauth/start', { method: 'POST' });
+            const res = await fetch('/d-api/accounts/oauth/start', { method: 'POST' });
             const data = await res.json();
 
             if (data.auth_url) {
@@ -266,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (!code) return;
 
                         try {
-                            const cbRes = await fetch('/api/accounts/oauth/callback', {
+                            const cbRes = await fetch('/d-api/accounts/oauth/callback', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ code, port: data.port })
@@ -287,7 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 oauthPollInterval = setInterval(async () => {
-                    const checkRes = await fetch(`/api/accounts/oauth/check/${data.port}`);
+                    const checkRes = await fetch(`/d-api/accounts/oauth/check/${data.port}`);
                     const checkData = await checkRes.json();
 
                     if (!checkData.pending) {
@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-dim">Loading models...</td></tr>';
 
         try {
-            const res = await fetch('/api/models');
+            const res = await fetch('/d-api/models');
             const data = await res.json();
 
             tbody.innerHTML = '';
@@ -377,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lucide.createIcons();
 
         try {
-            const res = await fetch('/api/models/fetch', { method: 'POST' });
+            const res = await fetch('/d-api/models/fetch', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
                 showToast(data.message, 'success');
@@ -397,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Settings ---
     const loadSettings = async () => {
         try {
-            const res = await fetch('/api/settings');
+            const res = await fetch('/d-api/settings');
             const data = await res.json();
             document.getElementById('input-portal-port').value = data.portal_port || 5000;
             document.getElementById('input-upstream-proxy').value = data.upstream_proxy || '';
@@ -407,7 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { }
 
         try {
-            const svcRes = await fetch('/api/service/status');
+            const svcRes = await fetch('/d-api/service/status');
             const svcData = await svcRes.json();
             const autostartToggle = document.getElementById('input-service-autostart');
             const msgEl = document.getElementById('service-status-msg');
@@ -429,7 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const publicUrl = document.getElementById('input-public-url').value;
 
         try {
-            const res = await fetch('/api/settings', {
+            const res = await fetch('/d-api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -455,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const password = document.getElementById('input-admin-password').value;
 
         try {
-            const res = await fetch('/api/settings', {
+            const res = await fetch('/d-api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -484,7 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lucide.createIcons();
 
         try {
-            const res = await fetch('/api/system/restart', { method: 'POST' });
+            const res = await fetch('/d-api/system/restart', { method: 'POST' });
             const data = await res.json();
 
             if (data.success) {
@@ -493,7 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => {
                     const checkInterval = setInterval(async () => {
                         try {
-                            const ping = await fetch('/api/settings');
+                            const ping = await fetch('/d-api/settings');
                             if (ping.ok) {
                                 clearInterval(checkInterval);
                                 location.reload();
@@ -525,7 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Oh wait, our service toggle route does `systemctl enable`. It requires the unit file.
             // We should make sure the service toggle route also writes the unit file if it doesn't exist.
 
-            const res = await fetch('/api/service/toggle', {
+            const res = await fetch('/d-api/service/toggle', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ enable: isChecked })

@@ -48,7 +48,7 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'logged_in' not in session:
             # For API requests, return JSON instead of redirecting to login page
-            if request.path.startswith('/api/'):
+            if request.path.startswith('/d-api/'):
                 return jsonify({'success': False, 'error': 'Unauthorized', 'login_required': True}), 401
             return redirect(url_for('login'))
         return f(*args, **kwargs)
@@ -96,8 +96,8 @@ def dashboard(slug):
         return redirect(url_for('dashboard', slug=cfg['admin_slug']))
     return render_template('index.html', admin_slug=cfg['admin_slug'], host_url=request.host_url.rstrip('/'), portal_port=cfg['port'])
 
-@app.route('/api/accounts', methods=['GET'])
-@app.route('/api/accounts/', methods=['GET'])
+@app.route('/d-api/accounts', methods=['GET'])
+@app.route('/d-api/accounts/', methods=['GET'])
 @login_required
 def get_accounts():
     try:
@@ -115,8 +115,8 @@ def get_accounts():
         traceback.print_exc()
         return jsonify({'accounts': [], 'error': 'Database or internal error', 'details': str(e)}), 500
 
-@app.route('/api/accounts/oauth/start', methods=['POST'])
-@app.route('/api/accounts/oauth/start/', methods=['POST'])
+@app.route('/d-api/accounts/oauth/start', methods=['POST'])
+@app.route('/d-api/accounts/oauth/start/', methods=['POST'])
 @login_required
 def oauth_start():
     portal_cfg = core.get_portal_config()
@@ -137,7 +137,7 @@ def oauth_start():
     auth_url, port = core.get_oauth_url_only(auto_save=True, redirect_uri=redirect_uri)
     return jsonify({'auth_url': auth_url, 'port': port, 'redirect_uri': redirect_uri})
 
-@app.route('/api/accounts/oauth/callback', methods=['POST'])
+@app.route('/d-api/accounts/oauth/callback', methods=['POST'])
 @login_required
 def oauth_manual_callback():
     data = request.json
@@ -149,13 +149,13 @@ def oauth_manual_callback():
     success = core.handle_manual_callback(code, port)
     return jsonify({'success': success})
 
-@app.route('/api/accounts/oauth/check/<int:port>', methods=['GET'])
+@app.route('/d-api/accounts/oauth/check/<int:port>', methods=['GET'])
 @login_required
 def oauth_check(port):
     res = core.check_oauth_result(port)
     return jsonify(res)
 
-@app.route('/api/accounts/manual', methods=['POST'])
+@app.route('/d-api/accounts/manual', methods=['POST'])
 @login_required
 def add_manual():
     data = request.json
@@ -167,21 +167,21 @@ def add_manual():
     added = core.add_account(email, token, proxy_url=proxy_url)
     return jsonify({'success': added, 'error': 'Account already exists' if not added else None})
 
-@app.route('/api/accounts/<email>', methods=['DELETE'])
+@app.route('/d-api/accounts/<email>', methods=['DELETE'])
 @login_required
 def remove_account(email):
     success = core.remove_account(email)
     return jsonify({'success': success})
 
-@app.route('/api/accounts/<email>/refresh', methods=['POST'])
+@app.route('/d-api/accounts/<email>/refresh', methods=['POST'])
 @login_required
 def refresh_quota(email):
     msg = core.refresh_account_quota(email)
     success = "OK" in msg
     return jsonify({'success': success, 'message': msg})
 
-@app.route('/api/models', methods=['GET'])
-@app.route('/api/models/', methods=['GET'])
+@app.route('/d-api/models', methods=['GET'])
+@app.route('/d-api/models/', methods=['GET'])
 @login_required
 def get_models():
     models = core.get_available_models()
@@ -350,7 +350,7 @@ def handle_stream_request(gemini_body, access_token, model_name, account):
 
     return Response(stream_with_context(generate()), content_type='text/event-stream')
 
-@app.route('/api/models/fetch', methods=['POST'])
+@app.route('/d-api/models/fetch', methods=['POST'])
 @login_required
 def fetch_models():
     models = core.get_available_models(force=True)
@@ -358,7 +358,7 @@ def fetch_models():
         return jsonify({'success': True, 'models': models, 'message': f'Successfully fetched {len(models)} models.'})
     return jsonify({'success': False, 'message': 'Failed to fetch models. Make sure you have at least one active account.'})
 
-@app.route('/api/settings', methods=['GET', 'POST'])
+@app.route('/d-api/settings', methods=['GET', 'POST'])
 @login_required
 def settings():
     if request.method == 'GET':
@@ -407,7 +407,7 @@ def settings():
                 
         return jsonify({'success': True})
 
-@app.route('/api/system/restart', methods=['POST'])
+@app.route('/d-api/system/restart', methods=['POST'])
 @login_required
 def system_restart():
     """Restart the AGPM service via systemctl."""
@@ -441,7 +441,7 @@ def debug_status():
     except Exception as e:
         return jsonify({'error': str(e), 'trace': 'Check server logs'})
 
-@app.route('/api/service/status', methods=['GET'])
+@app.route('/d-api/service/status', methods=['GET'])
 @login_required
 def service_status():
     try:
@@ -454,7 +454,7 @@ def service_status():
     except Exception:
         return jsonify({'installed': False, 'enabled': False})
 
-@app.route('/api/service/toggle', methods=['POST'])
+@app.route('/d-api/service/toggle', methods=['POST'])
 @login_required
 def service_toggle():
     data = request.json
@@ -497,8 +497,8 @@ WantedBy=default.target
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@app.route('/api/proxy/status', methods=['GET'])
-@app.route('/api/proxy/status/', methods=['GET'])
+@app.route('/d-api/proxy/status', methods=['GET'])
+@app.route('/d-api/proxy/status/', methods=['GET'])
 @login_required
 def proxy_status():
     portal_cfg = core.get_portal_config()
@@ -510,7 +510,7 @@ def proxy_status():
         'port': port
     })
 
-@app.route('/api/proxy/test', methods=['POST'])
+@app.route('/d-api/proxy/test', methods=['POST'])
 @login_required
 def proxy_test():
     data = request.json
