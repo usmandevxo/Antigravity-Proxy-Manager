@@ -152,22 +152,56 @@ def get_accounts():
 @app.route('/d-api/accounts/oauth/start/', methods=['POST'])
 @login_required
 def oauth_start():
-    redirect_uri = get_redirect_uri()
-    print(f"[*] OAuth Start | Host: {request.host} | Redirect URI: {redirect_uri}")
+    # Always use 127.0.0.1:5005 — this is the URI registered in Google Cloud Console.
+    # The callback server runs locally; if the user is on a remote machine,
+    # they copy the "code" from the failed redirect URL and paste it manually.
+    redirect_uri = f'http://127.0.0.1:{core.OAUTH_PORT}'
+    print(f"[*] OAuth Start | Redirect URI: {redirect_uri}")
     auth_url, port = core.get_oauth_url_only(auto_save=True, redirect_uri=redirect_uri)
     return jsonify({'auth_url': auth_url, 'port': port, 'redirect_uri': redirect_uri})
 
 @app.route('/d-api/accounts/oauth/callback', methods=['POST'])
 @login_required
 def oauth_manual_callback():
+    """Exchange an auth code manually (for remote/domain users who can't auto-redirect)."""
     data = request.json
     code = data.get('code')
-    port = data.get('port')
-    if not code or not port:
-        return jsonify({'success': False, 'error': 'Missing code or port'}), 400
+    if not code:
+        return jsonify({'success': False, 'error': 'Missing code'}), 400
     
-    success = core.handle_manual_callback(code, port)
-    return jsonify({'success': success})
+    # Must use the same redirect_uri that was sent to Google
+    redirect_uri = f'http://127.0.0.1:{core.OAUTH_PORT}'
+    
+    tokens = core._exchange_code_for_tokens(code, redirect_uri)
+    if not tokens or 'refresh_token' not in tokens:
+        return jsonify({'success': False, 'error': 'Failed to exchange code. It may have expired — try again.'})
+    
+    refresh_token = tokens['refresh_token']
+    access_token = tokens.get('access_token', '')
+    
+    email, name, project_id = '', '', ''
+    if access_token:
+        user_info = core.fetch_user_info(access_token)
+        if user_info:
+            email = user_info.get('email', '')
+            name = user_info.get('name', '')
+        project_id = core.fetch_project_id(access_token)
+    
+    if not email:
+        return jsonify({'success': False, 'error': 'Could not retrieve account email from Google'})
+    
+    test_success, test_msg = core._test_gemini_connection(access_token, project_id)
+    status_val = 'active' if test_success else 'rejected'
+    added = core.add_account(email, refresh_token, name=name, project_id=project_id, status=status_val)
+    
+    return jsonify({
+        'success': True,
+        'added': added,
+        'email': email,
+        'name': name,
+        'test_success': test_success,
+        'error': 'Account already exists' if not added else None
+    })
 
 @app.route('/d-api/accounts/oauth/check/<int:port>', methods=['GET'])
 @login_required

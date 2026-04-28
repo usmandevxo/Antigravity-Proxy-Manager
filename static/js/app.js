@@ -244,48 +244,81 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.open(data.auth_url, '_blank');
                 modal.classList.add('active');
 
-                // Manual code submission for server deployments
+                // Inject manual code container if not already there
                 const modalBody = modal.querySelector('.card');
                 if (!document.getElementById('manual-code-container')) {
                     const div = document.createElement('div');
                     div.id = 'manual-code-container';
-                    div.style.marginTop = 'var(--space-6)';
-                    div.style.paddingTop = 'var(--space-4)';
-                    div.style.borderTop = '1px solid var(--color-border)';
+                    div.style.cssText = 'margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--color-border);';
                     div.innerHTML = `
-                        <p class="text-dim" style="font-size: var(--text-sm); margin-bottom: var(--space-3);">Redirect failed? Paste the code here:</p>
+                        <p style="font-size: var(--text-sm); font-weight: var(--weight-medium); margin-bottom: var(--space-2); color: var(--color-text);">
+                            <i data-lucide="info" style="width:14px;height:14px;display:inline;vertical-align:middle;"></i>
+                            If Google redirected you to an error page, copy the <strong>code</strong> from the URL and paste it below.
+                        </p>
+                        <p class="text-dim" style="font-size: var(--text-xs); margin-bottom: var(--space-3);">
+                            The URL will look like: <code>http://127.0.0.1:5005/?code=<strong>4/0A...</strong>&scope=...</code>
+                        </p>
                         <div style="display:flex; gap: 8px;">
-                            <input type="text" id="input-oauth-code" class="form-input" style="flex:1" placeholder="Paste code from URL here...">
-                            <button class="btn btn--primary btn--sm" id="btn-submit-code">Save</button>
+                            <input type="text" id="input-oauth-code" class="form-input" style="flex:1" placeholder="Paste code here (e.g. 4/0AY0e-g7...)">
+                            <button class="btn btn--primary btn--sm" id="btn-submit-code">Submit</button>
                         </div>
+                        <div id="manual-code-status" style="margin-top: var(--space-3); font-size: var(--text-sm); display:none;"></div>
                     `;
                     modalBody.appendChild(div);
+                    lucide.createIcons();
 
                     document.getElementById('btn-submit-code').addEventListener('click', async () => {
                         const code = document.getElementById('input-oauth-code').value.trim();
-                        if (!code) return;
+                        if (!code) { showToast('Please paste the code first', 'error'); return; }
+
+                        const btn = document.getElementById('btn-submit-code');
+                        const statusEl = document.getElementById('manual-code-status');
+                        btn.disabled = true;
+                        btn.textContent = 'Verifying...';
+                        statusEl.style.display = 'block';
+                        statusEl.style.color = 'var(--color-text-secondary)';
+                        statusEl.textContent = 'Exchanging code with Google...';
 
                         try {
                             const cbRes = await fetch('/d-api/accounts/oauth/callback', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ code, port: data.port })
+                                body: JSON.stringify({ code })
                             });
                             const cbData = await cbRes.json();
-                            if (cbData.success) {
-                                showToast('Account added successfully!', 'success');
+
+                            if (cbData.success && cbData.added) {
                                 clearInterval(oauthPollInterval);
                                 modal.classList.remove('active');
+                                showToast(`✅ Added ${cbData.email}`, 'success');
                                 loadAccounts();
+                            } else if (cbData.success && !cbData.added) {
+                                statusEl.style.color = 'var(--accent-danger)';
+                                statusEl.textContent = `Account ${cbData.email} already exists.`;
+                                btn.disabled = false;
+                                btn.textContent = 'Submit';
                             } else {
-                                showToast('Failed to add account with that code.', 'error');
+                                statusEl.style.color = 'var(--accent-danger)';
+                                statusEl.textContent = cbData.error || 'Failed. The code may have expired — try again.';
+                                btn.disabled = false;
+                                btn.textContent = 'Submit';
                             }
                         } catch (e) {
-                            showToast('Error submitting code', 'error');
+                            statusEl.style.color = 'var(--accent-danger)';
+                            statusEl.textContent = 'Network error. Please try again.';
+                            btn.disabled = false;
+                            btn.textContent = 'Submit';
                         }
                     });
+                } else {
+                    // Reset on re-open
+                    document.getElementById('input-oauth-code').value = '';
+                    document.getElementById('manual-code-status').style.display = 'none';
+                    const submitBtn = document.getElementById('btn-submit-code');
+                    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; }
                 }
 
+                // Still poll in case the user is on localhost and the auto-callback works
                 oauthPollInterval = setInterval(async () => {
                     const checkRes = await fetch(`/d-api/accounts/oauth/check/${data.port}`);
                     const checkData = await checkRes.json();
@@ -296,13 +329,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         if (checkData.success) {
                             if (checkData.added) {
-                                showToast(`Successfully added ${checkData.email}`, 'success');
+                                showToast(`✅ Successfully added ${checkData.email}`, 'success');
                             } else {
                                 showToast(`Account ${checkData.email} already exists`, 'error');
                             }
                             loadAccounts();
                         } else {
-                            showToast(checkData.error || 'OAuth failed', 'error');
+                            // Don't close modal on auto-poll failure — user may be using manual code input
                         }
                     }
                 }, 2000);
@@ -316,6 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearInterval(oauthPollInterval);
         modal.classList.remove('active');
     });
+
 
     // --- Models ---
     const loadModels = async () => {

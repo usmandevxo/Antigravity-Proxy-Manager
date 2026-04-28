@@ -156,7 +156,8 @@
                         <div style="display:flex; align-items:center; gap:6px;">
                             <div class="pulse-dot running" id="system-status-dot"></div>
                             <span id="system-status-text"
-                                style="font-size: var(--text-sm); font-weight: var(--weight-medium);">System Online</span>
+                                style="font-size: var(--text-sm); font-weight: var(--weight-medium);">System
+                                Online</span>
                         </div>
                     </div>
                 </div>
@@ -267,7 +268,8 @@
                             <h3 class="ds-subsection__title">Unified Configuration</h3>
                             <div class="form-group" style="margin-top: var(--space-4);">
                                 <label class="form-label">System Port (Portal & Proxy)</label>
-                                <input type="number" id="input-portal-port" class="form-input" value="{{ portal_port }}">
+                                <input type="number" id="input-portal-port" class="form-input"
+                                    value="{{ portal_port }}">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Upstream Proxy URL (Optional)</label>
@@ -278,10 +280,12 @@
                                 <label class="form-label">Public Domain/URL (Optional)</label>
                                 <input type="text" id="input-public-url" class="form-input"
                                     placeholder="http://login.agpm.eu.cc">
-                                <p class="text-dim" style="font-size: var(--text-xs); margin-top: 4px;">Used for OAuth redirects when accessing via domain.</p>
+                                <p class="text-dim" style="font-size: var(--text-xs); margin-top: 4px;">Used for OAuth
+                                    redirects when accessing via domain.</p>
                             </div>
                             <div class="form-group" style="margin-top: var(--space-4);">
-                                <p class="text-dim" style="font-size: var(--text-sm);">The proxy and web dashboard now share the same port for maximum efficiency.</p>
+                                <p class="text-dim" style="font-size: var(--text-sm);">The proxy and web dashboard now
+                                    share the same port for maximum efficiency.</p>
                             </div>
                             <button class="btn btn--primary" id="btn-save-settings"
                                 style="width: 100%; margin-top: var(--space-4);">Save Config</button>
@@ -319,7 +323,7 @@
                             <p class="text-dim"
                                 style="font-size: var(--text-sm); margin-top: var(--space-2); margin-bottom: var(--space-4);">
                                 Control the AGPM background services and auto-start configuration.</p>
-                            
+
                             <div class="form-group">
                                 <label class="form-switch">
                                     <input type="checkbox" id="input-service-autostart">
@@ -327,17 +331,21 @@
                                     Start on System Boot
                                 </label>
                             </div>
-                            
-                            <div style="margin-top: var(--space-6); border-top: 1px solid var(--color-border); padding-top: var(--space-4);">
-                                <button class="btn btn--danger btn--outline" id="btn-restart-system" style="width: 100%;">
-                                    <i data-lucide="rotate-ccw" style="width: 16px; height: 16px; margin-right: 8px;"></i>
+
+                            <div
+                                style="margin-top: var(--space-6); border-top: 1px solid var(--color-border); padding-top: var(--space-4);">
+                                <button class="btn btn--danger btn--outline" id="btn-restart-system"
+                                    style="width: 100%;">
+                                    <i data-lucide="rotate-ccw"
+                                        style="width: 16px; height: 16px; margin-right: 8px;"></i>
                                     Restart AGPM Services
                                 </button>
-                                <p class="text-dim" style="font-size: var(--text-xs); margin-top: var(--space-2); text-align: center;">
+                                <p class="text-dim"
+                                    style="font-size: var(--text-xs); margin-top: var(--space-2); text-align: center;">
                                     Restarting will briefly disconnect you from the dashboard.
                                 </p>
                             </div>
-                            
+
                             <p class="text-dim" style="font-size: var(--text-sm); margin-top: var(--space-3);"
                                 id="service-status-msg"></p>
                         </div>
@@ -346,12 +354,16 @@
             </div>
 
             <!-- FOOTER -->
-            <footer style="padding: var(--space-6) var(--space-8); border-top: 1px solid var(--color-border); margin-top: auto; display: flex; justify-content: space-between; align-items: center; color: var(--color-text-tertiary); font-size: var(--text-sm);">
+            <footer
+                style="padding: var(--space-6) var(--space-8); border-top: 1px solid var(--color-border); margin-top: auto; display: flex; justify-content: space-between; align-items: center; color: var(--color-text-tertiary); font-size: var(--text-sm);">
                 <div>
-                    &copy; 2026 <a href="https://github.com/usmandevxo" target="_blank" style="color: var(--color-primary); text-decoration: none; font-weight: var(--weight-medium);">Usman</a>. AGPM Enterprise.
+                    &copy; 2026 <a href="https://github.com/usmandevxo" target="_blank"
+                        style="color: var(--color-primary); text-decoration: none; font-weight: var(--weight-medium);">Usman</a>.
+                    AGPM Enterprise.
                 </div>
                 <div style="display: flex; gap: var(--space-4);">
-                    <a href="https://github.com/usmandevxo/Antigravity-Proxy-Manager" target="_blank" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                    <a href="https://github.com/usmandevxo/Antigravity-Proxy-Manager" target="_blank"
+                        style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 4px;">
                         <i data-lucide="github" style="width: 14px; height: 14px;"></i> Repository
                     </a>
                     <span>v1.0.0-Stable</span>
