@@ -190,7 +190,7 @@ def oauth_manual_callback():
     if not email:
         return jsonify({'success': False, 'error': 'Could not retrieve account email from Google'})
     
-    test_success, test_msg = core._test_gemini_connection(access_token, project_id)
+    test_success, test_msg, verification_url = core._test_gemini_connection(access_token, project_id)
     status_val = 'active' if test_success else 'rejected'
     added = core.add_account(email, refresh_token, name=name, project_id=project_id, status=status_val)
     
@@ -200,6 +200,7 @@ def oauth_manual_callback():
         'email': email,
         'name': name,
         'test_success': test_success,
+        'verification_url': verification_url,
         'error': 'Account already exists' if not added else None
     })
 
@@ -233,6 +234,48 @@ def refresh_quota(email):
     msg = core.refresh_account_quota(email)
     success = "OK" in msg
     return jsonify({'success': success, 'message': msg})
+
+@app.route('/d-api/accounts/<email>/verify', methods=['POST'])
+@login_required
+def verify_account(email):
+    try:
+        accounts = core.get_accounts()
+        target = next((a for a in accounts if a['email'] == email), None)
+        if not target:
+            return jsonify({'success': False, 'message': f'Account {email} not found'}), 404
+
+        rt = target.get('_refresh_token')
+        if not rt:
+            return jsonify({'success': False, 'message': f'No refresh token for {email}'}), 400
+
+        tokens = core.refresh_access_token(rt)
+        if not tokens or 'access_token' not in tokens:
+            return jsonify({'success': False, 'message': f'Failed to refresh access token for {email}'}), 500
+
+        access_token = tokens['access_token']
+        project_id = target.get('quota', {}).get('project_id', '')
+        if not project_id:
+            project_id = core.fetch_project_id(access_token)
+
+        test_success, test_msg, verification_url = core._test_gemini_connection(access_token, project_id)
+        status_val = 'active' if test_success else 'rejected'
+
+        # Update status in DB
+        conn = core._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE accounts SET status = ?, last_used = ? WHERE email = ?", (status_val, int(time.time() * 1000), email))
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'test_success': test_success,
+            'verification_url': verification_url,
+            'message': test_msg
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({'success': False, 'message': f'Exception: {str(e)}', 'traceback': traceback.format_exc()}), 500
 
 @app.route('/d-api/models', methods=['GET'])
 @app.route('/d-api/models/', methods=['GET'])
