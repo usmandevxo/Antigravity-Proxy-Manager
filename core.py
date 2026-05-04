@@ -56,7 +56,7 @@ _tmp_oauth = _tmp_config.get('oauth', {})
 CLIENT_ID = _tmp_oauth.get('client_id', 'your_google_client_id_here')
 CLIENT_SECRET = _tmp_oauth.get('client_secret', 'your_google_client_secret_here')
 OAUTH_PORT = 5005
-USER_AGENT = 'antigravity/1.11.3 Linux/x86_64'
+USER_AGENT = 'antigravity/1.22.2 linux/amd64'
 URL_TOKEN = 'https://oauth2.googleapis.com/token'
 URL_QUOTA = 'https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels'
 URL_LOAD_PROJECT = 'https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist'
@@ -263,8 +263,9 @@ def fetch_live_quota(access_token: str) -> dict:
             'Content-Type': 'application/json',
         }
 
-        # Get project ID first
+        # Get project ID and credits first
         project_id = None
+        credits_info = None
         kwargs = get_httpx_kwargs()
         kwargs['timeout'] = 30.0
         try:
@@ -275,7 +276,28 @@ def fetch_live_quota(access_token: str) -> dict:
                 **kwargs,
             )
             if resp.is_success:
-                project_id = resp.json().get('cloudaicompanionProject')
+                data = resp.json()
+                project_id = data.get('cloudaicompanionProject')
+                
+                # Extract credits from paidTier, currentTier, or allowedTiers
+                tiers_to_check = []
+                if 'paidTier' in data: tiers_to_check.append(data['paidTier'])
+                if 'currentTier' in data: tiers_to_check.append(data['currentTier'])
+                if 'allowedTiers' in data and isinstance(data['allowedTiers'], list):
+                    tiers_to_check.extend(data['allowedTiers'])
+                
+                for tier in tiers_to_check:
+                    if tier and 'availableCredits' in tier:
+                        avail = tier['availableCredits']
+                        if avail and len(avail) > 0:
+                            amount = avail[0].get('creditAmount')
+                            if amount is not None:
+                                try:
+                                    credits_info = int(float(amount))
+                                    break
+                                except (ValueError, TypeError):
+                                    pass
+                    if credits_info is not None: break
         except Exception:
             pass
 
@@ -288,7 +310,11 @@ def fetch_live_quota(access_token: str) -> dict:
         resp.raise_for_status()
 
         raw = resp.json()
-        result = {'models': {}, 'project_id': project_id or ''}
+        result = {
+            'models': {}, 
+            'project_id': project_id or '',
+            'credits': credits_info
+        }
         for name, info in raw.get('models', {}).items():
             q_info = info.get('quotaInfo')
             if q_info:
@@ -299,11 +325,12 @@ def fetch_live_quota(access_token: str) -> dict:
                 }
         return result
     except Exception:
-        return {'models': {}, 'project_id': ''}
+        return {'models': {}, 'project_id': '', 'credits': None}
 
 
 def refresh_account_quota(email: str) -> str:
     """Refresh quota for a specific account. Returns status message."""
+    print(f"[*] Manual refresh requested for {email}")
     accounts = get_accounts()
     target = next((a for a in accounts if a['email'] == email), None)
     if not target:

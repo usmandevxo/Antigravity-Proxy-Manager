@@ -70,6 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(updateSystemStatus, 10000); // poll every 10s
 
     // --- Accounts Management ---
+    let accountsData = [];
+
     const loadAccounts = async () => {
         const tbody = document.getElementById('accounts-tbody');
         tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-dim">Loading accounts...</td></tr>';
@@ -81,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const data = await res.json();
+            accountsData = data.accounts;
 
             if (data.accounts.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-dim">No accounts found. Add one to start.</td></tr>';
@@ -91,23 +94,23 @@ document.addEventListener('DOMContentLoaded', () => {
             data.accounts.forEach(acc => {
                 const tr = document.createElement('tr');
 
-                // Calculate Usage (simplified)
-                let usage = 'N/A';
+                // Extract Credits
+                let credits = 'N/A';
                 const quota = acc.quota;
-                if (quota && quota.models) {
-                    const m = quota.models['cloudaicompanion.googleapis.com/gemini-2.5-flash'] || Object.values(quota.models)[0];
-                    if (m && m.percentage !== undefined) {
-                        usage = `${m.percentage}%`;
-                    }
+                if (quota && quota.credits !== undefined && quota.credits !== null) {
+                    credits = quota.credits;
                 }
 
                 tr.innerHTML = `
                     <td><strong>${acc.email}</strong></td>
                     <td class="text-dim">${acc.name || 'Unknown'}</td>
                     <td><span class="badge ${acc.status === 'active' ? 'badge--success' : 'badge--warning'}">${acc.status}</span></td>
-                    <td>${usage}</td>
+                    <td style="font-weight: 500; color: var(--color-primary);">${credits}</td>
                     <td>
                         <div style="display:flex; gap: 0.5rem">
+                            <button class="btn btn--ghost btn--icon btn--sm" title="Quota Details" onclick="showQuotaDetails('${acc.email}')">
+                                <i data-lucide="list"></i>
+                            </button>
                             <button class="btn btn--ghost btn--icon btn--sm" title="Test Account" onclick="openTestModal('${acc.email}')">
                                 <i data-lucide="play"></i>
                             </button>
@@ -167,6 +170,40 @@ document.addEventListener('DOMContentLoaded', () => {
             await window.refreshAccount(acc.email);
         }
     });
+
+    // --- Quota Details Modal ---
+    const quotaModal = document.getElementById('modal-quota');
+    window.showQuotaDetails = (email) => {
+        const acc = accountsData.find(a => a.email === email);
+        if (!acc) return;
+
+        document.getElementById('quota-email-display').textContent = email;
+        const tbody = document.getElementById('quota-details-tbody');
+        tbody.innerHTML = '';
+
+        const quota = acc.quota;
+        if (quota && quota.models) {
+            Object.entries(quota.models).forEach(([name, info]) => {
+                const tr = document.createElement('tr');
+                const modelName = name.split('/').pop();
+                const resetTime = info.resetTime ? new Date(info.resetTime).toLocaleString() : 'N/A';
+                tr.innerHTML = `
+                    <td><strong>${modelName}</strong></td>
+                    <td>${info.percentage}%</td>
+                    <td class="text-dim" style="font-size: var(--text-xs);">${resetTime}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-dim">No detailed quota info available. Click Refresh to fetch.</td></tr>';
+        }
+
+        quotaModal.classList.add('active');
+    };
+
+    const closeQuotaModal = () => quotaModal.classList.remove('active');
+    document.getElementById('btn-close-quota-modal').addEventListener('click', closeQuotaModal);
+    document.getElementById('btn-close-quota-modal-bottom').addEventListener('click', closeQuotaModal);
 
     // --- Proxy Test Modal ---
     const testModal = document.getElementById('modal-test');
