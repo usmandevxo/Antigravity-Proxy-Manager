@@ -6,3 +6,4 @@ data/
 .env
 site/
 agpm.egg-info/
+kiro/

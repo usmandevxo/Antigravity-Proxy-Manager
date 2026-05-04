@@ -10,6 +10,7 @@ import os
 import sys
 import uuid
 import time
+import datetime
 import json
 import httpx
 import core
@@ -21,11 +22,21 @@ MODEL_MAPPING = {
     'claude-haiku-4.5': 'claude-haiku-4.5',
     'claude-3-5-sonnet': 'claude-sonnet-4.5',
     'claude-3-5-sonnet-latest': 'claude-sonnet-4.5',
+    'claude-3-5-sonnet-20241022': 'claude-sonnet-4.5',
+    'claude-3-5-sonnet-20240620': 'claude-sonnet-4.5',
     'claude-3-opus': 'claude-sonnet-4',
+    'claude-3-opus-20240229': 'claude-sonnet-4',
     'claude-3-haiku': 'claude-haiku-4.5',
+    'claude-3-5-haiku-20241022': 'claude-haiku-4.5',
     'gpt-4o': 'claude-sonnet-4.5',
     'gpt-4': 'claude-sonnet-4',
     'gpt-3.5-turbo': 'claude-haiku-4.5',
+    'gemini-1.5-pro': 'claude-sonnet-4.5',
+    'gemini-1.5-flash': 'claude-haiku-4.5',
+    'gemini-2.0-pro': 'claude-sonnet-4.5',
+    'gemini-2.0-flash': 'claude-haiku-4.5',
+    'gemini-2.5-pro': 'claude-sonnet-4.5',
+    'gemini-exp-1206': 'claude-sonnet-4.5',
     'qwen': 'qwen3-coder-next',
     'qwen-coder': 'qwen3-coder-next',
     'qwen3-coder-next': 'qwen3-coder-next',
@@ -137,21 +148,43 @@ def add_account():
     if not profile_arn or not refresh_token:
         return jsonify({'success': False, 'error': 'Missing Profile ARN or Refresh Token'}), 400
 
-    success = core.add_account(profile_arn, refresh_token, name, region)
-    return jsonify({'success': success, 'error': 'Account already exists' if not success else None})
+    status = core.add_account(profile_arn, refresh_token, name, region)
+    return jsonify({'success': status['status'] == 'added', 'status': status['status'], 'id': status['id']})
 
 
-@app.route('/d-api/accounts/<path:profile_arn>', methods=['DELETE'])
+@app.route('/d-api/accounts/<int:account_id>', methods=['DELETE'])
 @login_required
-def delete_account(profile_arn):
-    success = core.remove_account(profile_arn)
+def delete_account(account_id):
+    success = core.remove_account(account_id)
     return jsonify({'success': success})
 
 
-@app.route('/d-api/accounts/<path:profile_arn>/info', methods=['GET'])
+@app.route('/d-api/settings/prompts', methods=['GET', 'POST'])
 @login_required
-def account_info(profile_arn):
-    token = core.get_access_token(profile_arn)
+def prompt_settings():
+    if request.method == 'POST':
+        data = request.json
+        success = core.save_prompt_settings(data)
+        return jsonify({'success': success})
+    
+    settings = core.get_prompt_settings()
+    return jsonify(settings)
+
+
+@app.route('/d-api/settings/prompts/reset', methods=['POST'])
+@login_required
+def reset_prompt_settings():
+    db = core._read_db()
+    if 'prompt_settings' in db:
+        del db['prompt_settings']
+    core._write_db(db)
+    return jsonify({'success': True, 'settings': core.get_prompt_settings()})
+
+
+@app.route('/d-api/accounts/<int:account_id>/info', methods=['GET'])
+@login_required
+def account_info(account_id):
+    token = core.get_access_token(account_id)
     if not token:
         return jsonify({'success': False, 'error': 'No active access token found for this account.'}), 401
         
@@ -201,6 +234,61 @@ def oauth_callback():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+
+@app.route('/d-api/accounts/<int:account_id>/switch-cmd', methods=['GET'])
+@login_required
+def account_switch_cmd(account_id):
+    """Generate a shell command that switches the active Kiro IDE account."""
+    accounts = core.get_accounts()
+    acc = next((a for a in accounts if a['id'] == account_id), None)
+    if not acc:
+        return jsonify({'success': False, 'error': 'Account not found'}), 404
+
+    # Get a fresh access token so the command works immediately
+    access_token = core.get_access_token(account_id)
+    if not access_token:
+        return jsonify({'success': False, 'error': 'Could not retrieve a valid access token. Try refreshing.'}), 401
+
+    profile_arn = acc['profile_arn']
+    # get_accounts() already decrypts the refresh token into _refresh_token
+    refresh_token = acc.get('_refresh_token', '')
+
+    # Read provider/auth_method from the local kiro cache file (best available source)
+    cache = core._read_kiro_token_cache()
+    provider = cache.get('provider', 'Google')
+    auth_method = cache.get('authMethod', 'social')
+
+    import datetime
+    expires_at = (datetime.datetime.utcnow() + datetime.timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+
+    token_payload = {
+        "accessToken": access_token,
+        "refreshToken": refresh_token,
+        "profileArn": profile_arn,
+        "expiresAt": expires_at,
+        "authMethod": auth_method,
+        "provider": provider
+    }
+    token_json = json.dumps(token_payload, indent=2)
+
+    # Build a safe single-line shell command using printf
+    escaped = token_json.replace("'", "'\\''")
+    account_name = acc.get('name', profile_arn)
+    shell_cmd = (
+        f"mkdir -p ~/.aws/sso/cache && "
+        f"printf '%s' '{escaped}' > ~/.aws/sso/cache/kiro-auth-token.json && "
+        f"echo '✅ Kiro account switched to: {account_name}'"
+    )
+
+    return jsonify({
+        'success': True,
+        'name': account_name,
+        'profile_arn': profile_arn,
+        'command': shell_cmd
+    })
+
+
+
 @app.route('/d-api/models', methods=['GET'])
 @login_required
 def get_dashboard_models():
@@ -230,8 +318,29 @@ def refresh_dashboard_models():
         if not accounts:
             return jsonify({'success': False, 'error': 'No active accounts to fetch models.'}), 400
             
-        profile_arn = accounts[0]['profile_arn']
-        token = core.get_access_token(profile_arn)
+        # Extract account ID from X-Account-Id, x-api-key, or Authorization
+        target_id = request.headers.get('X-Account-Id')
+        if not target_id:
+            target_id = request.headers.get('x-api-key')
+        if not target_id:
+            auth = request.headers.get('Authorization', '')
+            if auth.startswith('Bearer '):
+                target_id = auth.split(' ')[1]
+                
+        active_account = None
+        if target_id:
+            try:
+                tid = int(target_id)
+                active_account = next((a for a in accounts if a['id'] == tid), None)
+            except (ValueError, TypeError):
+                pass
+        
+        if not active_account:
+            active_account = accounts[0]
+            
+        profile_arn = active_account['profile_arn']
+        account_id = active_account['id']
+        token = core.get_access_token(account_id)
         if not token:
             return jsonify({'success': False, 'error': 'Failed to get access token.'}), 400
             
@@ -324,6 +433,49 @@ def v1_models():
     return jsonify({'object': 'list', 'data': data})
 
 
+def process_prompt_template(system_text, user_text, model_name=""):
+    """Apply the user-defined prompt template and custom shortcodes."""
+    settings = core.get_prompt_settings()
+    template = settings.get('template', 'System Instructions:\n{{system}}\n\nUser Request:\n{{request}}')
+    custom = settings.get('custom_shortcodes', [])
+    
+    # Dynamic system tags
+    now = datetime.datetime.now()
+    dynamic = {
+        '{{date}}': now.strftime("%Y-%m-%d"),
+        '{{time}}': now.strftime("%H:%M:%S"),
+        '{{datetime}}': now.strftime("%Y-%m-%d %H:%M:%S"),
+        '{{model}}': model_name
+    }
+    
+    # 1. Apply dynamic and custom shortcodes to source texts
+    for tag, val in dynamic.items():
+        system_text = system_text.replace(tag, val)
+        user_text = user_text.replace(tag, val)
+        
+    for item in custom:
+        tag = item.get('tag', '')
+        val = item.get('value', '')
+        if tag:
+            system_text = system_text.replace(tag, val)
+            user_text = user_text.replace(tag, val)
+            
+    # 2. Apply main template
+    result = template.replace('{{system}}', system_text).replace('{{request}}', user_text)
+    
+    # 3. Final pass for shortcodes in template itself
+    for tag, val in dynamic.items():
+        result = result.replace(tag, val)
+        
+    for item in custom:
+        tag = item.get('tag', '')
+        val = item.get('value', '')
+        if tag:
+            result = result.replace(tag, val)
+            
+    return result
+
+
 @app.route('/v1/chat/completions', methods=['POST', 'OPTIONS'])
 def v1_chat_completions():
     if request.method == 'OPTIONS':
@@ -344,15 +496,27 @@ def v1_chat_completions():
         return jsonify({'error': {'message': 'No Kiro accounts available. Add accounts in the dashboard first.', 'type': 'server_error'}}), 503
 
     # Pick account from header if specified (used by dashboard test tool), else pick the most recently used active account
-    target_arn = request.headers.get('X-Profile-Arn')
+    target_id = request.headers.get('X-Account-Id')
+    if not target_id:
+        target_id = request.headers.get('x-api-key')
+    if not target_id:
+        auth = request.headers.get('Authorization', '')
+        if auth.startswith('Bearer '):
+            target_id = auth.split(' ')[1]
+            
     active_account = None
-    if target_arn:
-        active_account = next((a for a in accounts if a['profile_arn'] == target_arn), None)
+    if target_id:
+        try:
+            tid = int(target_id)
+            active_account = next((a for a in accounts if a['id'] == tid), None)
+        except (ValueError, TypeError):
+            pass
     if not active_account:
         active_account = accounts[0]
         
     profile_arn = active_account['profile_arn']
-    access_token = core.get_access_token(profile_arn)
+    account_id = active_account['id']
+    access_token = core.get_access_token(account_id)
     
     if not access_token:
         return jsonify({'error': {'message': 'Failed to retrieve or refresh access token for Kiro account.', 'type': 'server_error'}}), 401
@@ -366,8 +530,19 @@ def v1_chat_completions():
     
     # Build conversation history from OpenAI messages
     history = []
+    system_prompts = []
     current_content = "Hello"
     if messages:
+        # Extract system prompts first
+        for msg in messages:
+            if msg.get('role') == 'system':
+                sys_content = msg.get('content', '')
+                if isinstance(sys_content, list):
+                    texts = [c.get('text', '') for c in sys_content if c.get('type') == 'text']
+                    sys_content = "\n".join(texts)
+                if sys_content:
+                    system_prompts.append(sys_content)
+
         last_msg_content = messages[-1].get('content', '')
         if isinstance(last_msg_content, list):
             # Extract text blocks, stringify the rest or ignore images since CW requires string
@@ -381,9 +556,16 @@ def v1_chat_completions():
         else:
             current_content = last_msg_content
             
+        # Apply prompt template and shortcodes
+        combined_system = "\n\n".join(system_prompts) if system_prompts else ""
+        current_content = process_prompt_template(combined_system, current_content, model_name=model_name)
+
         # Map previous messages to CW history format
         for msg in messages[:-1]:
             role = msg.get('role', 'user')
+            if role == 'system':
+                continue
+                
             msg_content = msg.get('content', '')
             if isinstance(msg_content, list):
                 texts = []
@@ -547,16 +729,28 @@ def v1_messages():
     if not accounts:
         return jsonify({'error': {'message': 'No Kiro accounts available. Add accounts in the dashboard first.', 'type': 'api_error'}}), 503
 
-    # Use x-api-key or X-Profile-Arn to select account if present, otherwise default
-    target_arn = request.headers.get('X-Profile-Arn') or request.headers.get('x-api-key')
+    # Use X-Account-Id header to select account if present, otherwise default
+    target_id = request.headers.get('X-Account-Id')
+    if not target_id:
+        target_id = request.headers.get('x-api-key')
+    if not target_id:
+        auth = request.headers.get('Authorization', '')
+        if auth.startswith('Bearer '):
+            target_id = auth.split(' ')[1]
+            
     active_account = None
-    if target_arn and target_arn.startswith('arn:'):
-        active_account = next((a for a in accounts if a['profile_arn'] == target_arn), None)
+    if target_id:
+        try:
+            tid = int(target_id)
+            active_account = next((a for a in accounts if a['id'] == tid), None)
+        except (ValueError, TypeError):
+            pass
     if not active_account:
         active_account = accounts[0]
         
     profile_arn = active_account['profile_arn']
-    access_token = core.get_access_token(profile_arn)
+    account_id = active_account['id']
+    access_token = core.get_access_token(account_id)
     
     if not access_token:
         return jsonify({'error': {'message': 'Failed to retrieve or refresh access token for Kiro account.', 'type': 'api_error'}}), 401
@@ -570,8 +764,27 @@ def v1_messages():
     
     # Build conversation history from Anthropic messages
     history = []
+    system_prompts = []
     current_content = "Hello"
+    
+    # Extract top-level system prompt if present (Anthropic specific)
+    top_system = body.get('system', '')
+    if isinstance(top_system, list):
+        texts = [c.get('text', '') for c in top_system if c.get('type') == 'text']
+        top_system = "\n".join(texts)
+    if top_system:
+        system_prompts.append(top_system)
+
     if messages:
+        # Extract system roles from messages array
+        for msg in messages:
+            if msg.get('role') == 'system':
+                content = msg.get('content', '')
+                if isinstance(content, list):
+                    content = next((c.get('text', '') for c in content if c.get('type') == 'text'), '')
+                if content:
+                    system_prompts.append(content)
+
         # Anthropic messages are usually {"role": "user", "content": "..."}
         # But content can also be a list of blocks. For simplicity, we extract text if needed.
         last_msg = messages[-1]
@@ -581,8 +794,15 @@ def v1_messages():
         else:
             current_content = content_obj
             
+        # Apply prompt template and shortcodes
+        combined_system = "\n\n".join(system_prompts) if system_prompts else ""
+        current_content = process_prompt_template(combined_system, current_content, model_name=model_name)
+
         for msg in messages[:-1]:
             role = msg.get('role', 'user')
+            if role == 'system':
+                continue
+                
             content = msg.get('content', '')
             if isinstance(content, list):
                 content = next((c.get('text', '') for c in content if c.get('type') == 'text'), '')

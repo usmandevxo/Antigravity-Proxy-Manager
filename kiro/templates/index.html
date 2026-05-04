@@ -9,7 +9,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Ubuntu+Mono&family=Ubuntu:wght@400;500;700&display=swap"
         rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous"/>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -55,9 +55,34 @@
             display: none !important;
         }
 
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
         .data-table {
             width: 100%;
             border-collapse: collapse;
+            min-width: 600px; /* Force scroll on small screens */
+        }
+
+        @media (max-width: 768px) {
+            .ds-sidebar-overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                backdrop-filter: blur(2px);
+                z-index: 150;
+            }
+
+            .ds-sidebar-overlay.active {
+                display: block;
+            }
         }
 
         .data-table th,
@@ -180,13 +205,22 @@
         }
 
         @keyframes typing {
-            0%, 80%, 100% { transform: scale(0); }
-            40% { transform: scale(1); }
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+            }
+
+            40% {
+                transform: scale(1);
+            }
         }
     </style>
 </head>
 
 <body>
+    <div class="ds-sidebar-overlay" id="sidebar-overlay"></div>
     <div class="ds-layout">
 
         <!-- SIDEBAR -->
@@ -202,17 +236,24 @@
                 <div class="ds-sidebar__group">
                     <div class="ds-sidebar__group-label">Navigation</div>
                     <a class="ds-sidebar__link active" data-tab="accounts" style="cursor:pointer;"><i
-                            data-lucide="users"></i> Accounts</a>
-                    <a class="ds-sidebar__link" data-tab="models" style="cursor:pointer;"><i data-lucide="cpu"></i>
+                            class="fa fa-users"></i> Accounts</a>
+                    <a class="ds-sidebar__link" data-tab="models" style="cursor:pointer;"><i class="fa fa-microchip"></i>
                         Models</a>
-                    <a class="ds-sidebar__link" data-tab="api" style="cursor:pointer;"><i data-lucide="code-2"></i>
+                    <a class="ds-sidebar__link" data-tab="api" style="cursor:pointer;"><i class="fa fa-code"></i>
                         API</a>
-                    <a class="ds-sidebar__link" data-tab="chat" style="cursor:pointer;"><i data-lucide="message-circle"></i>
+                    <a class="ds-sidebar__link" data-tab="integrations" style="cursor:pointer;"><i
+                            class="fa fa-plug"></i>
+                        Integrations</a>
+                    <a class="ds-sidebar__link" data-tab="prompts" style="cursor:pointer;"><i
+                            class="fa fa-wand-magic-sparkles"></i>
+                        Prompts</a>
+                    <a class="ds-sidebar__link" data-tab="chat" style="cursor:pointer;"><i
+                            class="fa fa-comment"></i>
                         Chat</a>
                 </div>
                 <div class="ds-sidebar__group">
                     <div class="ds-sidebar__group-label">Session</div>
-                    <a class="ds-sidebar__link" href="/logout"><i data-lucide="log-out"></i> Logout</a>
+                    <a class="ds-sidebar__link" href="/logout"><i class="fa fa-sign-out-alt"></i> Logout</a>
                 </div>
             </nav>
         </aside>
@@ -221,7 +262,7 @@
         <main class="ds-main">
             <header class="ds-header">
                 <button class="ds-sidebar-toggle" aria-label="Toggle sidebar">
-                    <i data-lucide="menu"></i>
+                    <i class="fa fa-bars"></i>
                 </button>
                 <div class="ds-header__search" style="border:none; box-shadow:none; background:transparent;"></div>
                 <div class="ds-header__actions">
@@ -242,14 +283,14 @@
                         <h2 class="ds-section__title">Kiro Fleet</h2>
                         <p class="ds-section__desc">Manage and monitor your AWS CodeWhisperer profiles.</p>
                         <div style="margin-top: var(--space-4); display:flex; gap:var(--space-2);">
-                            <button class="btn btn--primary" id="btn-oauth-login"><i data-lucide="log-in"
+                            <button class="btn btn--primary" id="btn-oauth-login"><i class="fa fa-sign-in-alt"
                                     style="width:16px;height:16px;"></i> Auto Login (OAuth)</button>
                             <button class="btn btn--ghost" id="btn-add-account" style="padding: 0.5rem 1rem;"><i
-                                    data-lucide="plus" style="width:16px;height:16px;"></i> Manual Add</button>
+                                    class="fa fa-plus" style="width:16px;height:16px;"></i> Manual Add</button>
                         </div>
                     </div>
 
-                    <div class="card">
+                    <div class="card table-responsive">
                         <table class="data-table">
                             <thead>
                                 <tr>
@@ -276,11 +317,11 @@
                         <p class="ds-section__desc">Models mapped through Kiro AI.</p>
                         <div style="margin-top: var(--space-4); display:flex; gap:var(--space-2);">
                             <button class="btn btn--primary" id="btn-refresh-models" onclick="refreshModels()"><i
-                                    data-lucide="refresh-cw" style="width:16px;height:16px;"></i> Refresh
+                                    class="fa fa-sync" style="width:16px;height:16px;"></i> Refresh
                                 Models</button>
                         </div>
                     </div>
-                    <div class="card">
+                    <div class="card table-responsive">
                         <table class="data-table">
                             <thead>
                                 <tr>
@@ -303,27 +344,38 @@
                 <section id="tab-api" class="tab-content">
                     <div class="ds-section__header">
                         <h2 class="ds-section__title">API Documentation</h2>
-                        <p class="ds-section__desc">Integrate Kiro AI with your local development environment using OpenAI-compatible endpoints.</p>
+                        <p class="ds-section__desc">Integrate Kiro AI with your local development environment using
+                            OpenAI-compatible endpoints.</p>
                     </div>
 
                     <div class="card" style="padding: var(--space-8);">
                         <!-- Intro -->
                         <div class="doc-section">
                             <h3 class="ds-subsection__title">Introduction</h3>
-                            <p class="text-dim" style="margin-bottom: var(--space-6); max-width: 600px; line-height: 1.6;">
-                                Kiro provides an OpenAI-compatible REST API. You can use any OpenAI client library (Python, JS, Go) by pointing the <code>base_url</code> to your Kiro instance.
+                            <p class="text-dim"
+                                style="margin-bottom: var(--space-6); max-width: 600px; line-height: 1.6;">
+                                Kiro provides an OpenAI-compatible REST API. You can use any OpenAI client library
+                                (Python, JS, Go) by pointing the <code>base_url</code> to your Kiro instance.
                             </p>
                             <div class="api-grid">
                                 <div>
-                                    <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--color-primary);">Base URL</h4>
+                                    <h4
+                                        style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--color-primary);">
+                                        Base URL</h4>
                                     <div class="code-snippet">
                                         <span class="dynamic-host"></span>/v1
-                                        <button class="copy-btn" onclick="copyToClipboard(window.location.origin + '/v1', this)"><i data-lucide="copy" style="width:12px;height:12px;"></i> Copy</button>
+                                        <button class="copy-btn"
+                                            onclick="copyToClipboard(window.location.origin + '/v1', this)"><i
+                                                class="fa fa-copy" style="width:12px;height:12px;"></i> Copy</button>
                                     </div>
                                 </div>
                                 <div>
-                                    <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--color-primary);">Authentication</h4>
-                                    <p class="text-dim" style="font-size: 13px; line-height: 1.5;">Requests are currently authenticated via your existing dashboard session. No additional API keys are required for local access.</p>
+                                    <h4
+                                        style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--color-primary);">
+                                        Authentication</h4>
+                                    <p class="text-dim" style="font-size: 13px; line-height: 1.5;">Requests are
+                                        currently authenticated via your existing dashboard session. No additional API
+                                        keys are required for local access.</p>
                                 </div>
                             </div>
                         </div>
@@ -332,19 +384,28 @@
                         <div class="doc-section">
                             <div class="api-grid">
                                 <div>
-                                    <h3 class="ds-subsection__title"><span class="endpoint-badge badge-get">GET</span> List Models</h3>
-                                    <p class="text-dim" style="margin-bottom: var(--space-6); line-height: 1.6;">Retrieves a list of all models available through your connected AWS CodeWhisperer accounts.</p>
-                                    <div style="background: var(--color-surface); border-radius: 8px; padding: var(--space-4);">
-                                        <div style="display: flex; justify-content: space-between; font-size: 13px; padding-bottom: 8px; border-bottom: 1px solid var(--color-border);">
+                                    <h3 class="ds-subsection__title"><span class="endpoint-badge badge-get">GET</span>
+                                        List Models</h3>
+                                    <p class="text-dim" style="margin-bottom: var(--space-6); line-height: 1.6;">
+                                        Retrieves a list of all models available through your connected AWS
+                                        CodeWhisperer accounts.</p>
+                                    <div
+                                        style="background: var(--color-surface); border-radius: 8px; padding: var(--space-4);">
+                                        <div
+                                            style="display: flex; justify-content: space-between; font-size: 13px; padding-bottom: 8px; border-bottom: 1px solid var(--color-border);">
                                             <span style="color: var(--color-text-tertiary);">Endpoint</span>
-                                            <span style="font-family: monospace; color: var(--color-primary);">/v1/models</span>
+                                            <span
+                                                style="font-family: monospace; color: var(--color-primary);">/v1/models</span>
                                         </div>
                                     </div>
                                 </div>
                                 <div>
                                     <div class="code-snippet">
-                                        <span style="color: #569cd6;">curl</span> <span class="dynamic-host"></span>/v1/models
-                                        <button class="copy-btn" onclick="copyToClipboard(window.location.origin + '/v1/models', this)"><i data-lucide="copy" style="width:12px;height:12px;"></i> Copy</button>
+                                        <span style="color: #569cd6;">curl</span> <span
+                                            class="dynamic-host"></span>/v1/models
+                                        <button class="copy-btn"
+                                            onclick="copyToClipboard(window.location.origin + '/v1/models', this)"><i
+                                                class="fa fa-copy" style="width:12px;height:12px;"></i> Copy</button>
                                     </div>
                                 </div>
                             </div>
@@ -354,26 +415,43 @@
                         <div class="doc-section">
                             <div class="api-grid">
                                 <div>
-                                    <h3 class="ds-subsection__title"><span class="endpoint-badge badge-post">POST</span> Chat Completions</h3>
-                                    <p class="text-dim" style="margin-bottom: var(--space-6); line-height: 1.6;">Generate responses from your selected AI models using a familiar chat-completion interface.</p>
-                                    
-                                    <h4 style="font-size: 12px; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: 12px; font-weight: 700; letter-spacing: 0.05em;">Request Body</h4>
-                                    <div style="background: var(--color-surface); padding: 16px; border-radius: 8px; font-size: 13px; color: var(--color-primary); overflow-x: auto; border: 1px solid var(--color-border); font-family: 'Ubuntu Mono', monospace;">
-{
-  <span style="color: #9cdcfe;">"model"</span>: <span style="color: #ce9178;">"claude-sonnet-4.5"</span>,
-  <span style="color: #9cdcfe;">"messages"</span>: [{"role": <span style="color: #ce9178;">"user"</span>, "content": <span style="color: #ce9178;">"Hi"</span>}],
-  <span style="color: #9cdcfe;">"stream"</span>: <span style="color: #569cd6;">false</span>
-}</div>
+                                    <h3 class="ds-subsection__title"><span class="endpoint-badge badge-post">POST</span>
+                                        Chat Completions</h3>
+                                    <p class="text-dim" style="margin-bottom: var(--space-6); line-height: 1.6;">
+                                        Generate responses from your selected AI models using a familiar chat-completion
+                                        interface.</p>
+
+                                    <h4
+                                        style="font-size: 12px; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: 12px; font-weight: 700; letter-spacing: 0.05em;">
+                                        Request Body</h4>
+                                    <div
+                                        style="background: var(--color-surface); padding: 16px; border-radius: 8px; font-size: 13px; color: var(--color-primary); overflow-x: auto; border: 1px solid var(--color-border); font-family: 'Ubuntu Mono', monospace;">
+                                        {
+                                        <span style="color: #9cdcfe;">"model"</span>: <span
+                                            style="color: #ce9178;">"claude-3-5-sonnet-20241022"</span>,
+                                        <span style="color: #9cdcfe;">"messages"</span>: [{"role": <span
+                                            style="color: #ce9178;">"user"</span>, "content": <span
+                                            style="color: #ce9178;">"Hi"</span>}],
+                                        <span style="color: #9cdcfe;">"stream"</span>: <span
+                                            style="color: #569cd6;">false</span>
+                                        }
+                                    </div>
                                 </div>
                                 <div>
                                     <div class="code-snippet" style="white-space: pre;">
-<span style="color: #569cd6;">curl</span> <span class="dynamic-host"></span>/v1/chat/completions \
-  -H <span style="color: #ce9178;">"Content-Type: application/json"</span> \
-  -d <span style="color: #ce9178;">'{
-    "model": "claude-sonnet-4.5",
-    "messages": [{"role": "user", "content": "Hello"}]
-  }'</span>
-<button class="copy-btn" onclick="copyToClipboard('curl ' + window.location.origin + '/v1/chat/completions -H \"Content-Type: application/json\" -d \'{\"model\": \"claude-sonnet-4.5\", \"messages\": [{\"role\": \"user\", \"content\": \"Hello\"}]}\'', this)"><i data-lucide="copy" style="width:12px;height:12px;"></i> Copy</button>
+                                        <span style="color: #569cd6;">curl</span> <span
+                                            class="dynamic-host"></span>/v1/chat/completions \
+                                        -H <span style="color: #ce9178;">"Content-Type: application/json"</span> \
+                                        -d <span style="color: #ce9178;">'{
+                                            "model": "claude-3-5-sonnet-20241022",
+                                            "messages": [{"role": "user", "content": "Hello"}]
+                                            }'</span>
+                                        <button class="copy-btn"
+                                            onclick="copyToClipboard('curl ' + window.location.origin + '/v1/chat/completions -H \"
+                                            Content-Type: application/json\" -d \'{\"model\":
+                                            \"claude-3-5-sonnet-20241022\", \"messages\": [{\"role\": \"user\",
+                                            \"content\": \"Hello\"}]}\'', this)"><i class="fa fa-copy"
+                                                style="width:12px;height:12px;"></i> Copy</button>
                                     </div>
                                 </div>
                             </div>
@@ -383,33 +461,137 @@
                         <div class="doc-section">
                             <div class="api-grid">
                                 <div>
-                                    <h3 class="ds-subsection__title"><span class="endpoint-badge badge-post">POST</span> Anthropic Messages</h3>
-                                    <p class="text-dim" style="margin-bottom: var(--space-6); line-height: 1.6;">Use the native Anthropic protocol format. Ideal for tools strictly requiring the Claude Messages API.</p>
-                                    
-                                    <h4 style="font-size: 12px; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: 12px; font-weight: 700; letter-spacing: 0.05em;">Request Body</h4>
-                                    <div style="background: var(--color-surface); padding: 16px; border-radius: 8px; font-size: 13px; color: var(--color-primary); overflow-x: auto; border: 1px solid var(--color-border); font-family: 'Ubuntu Mono', monospace;">
-{
-  <span style="color: #9cdcfe;">"model"</span>: <span style="color: #ce9178;">"claude-sonnet-4.5"</span>,
-  <span style="color: #9cdcfe;">"max_tokens"</span>: <span style="color: #b5cea8;">1024</span>,
-  <span style="color: #9cdcfe;">"messages"</span>: [{"role": <span style="color: #ce9178;">"user"</span>, "content": <span style="color: #ce9178;">"Hello"</span>}],
-  <span style="color: #9cdcfe;">"stream"</span>: <span style="color: #569cd6;">false</span>
-}</div>
+                                    <h3 class="ds-subsection__title"><span class="endpoint-badge badge-post">POST</span>
+                                        Anthropic Messages</h3>
+                                    <p class="text-dim" style="margin-bottom: var(--space-6); line-height: 1.6;">Use the
+                                        native Anthropic protocol format. Ideal for tools strictly requiring the Claude
+                                        Messages API.</p>
+
+                                    <h4
+                                        style="font-size: 12px; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: 12px; font-weight: 700; letter-spacing: 0.05em;">
+                                        Request Body</h4>
+                                    <div
+                                        style="background: var(--color-surface); padding: 16px; border-radius: 8px; font-size: 13px; color: var(--color-primary); overflow-x: auto; border: 1px solid var(--color-border); font-family: 'Ubuntu Mono', monospace;">
+                                        {
+                                        <span style="color: #9cdcfe;">"model"</span>: <span
+                                            style="color: #ce9178;">"claude-3-5-sonnet-20241022"</span>,
+                                        <span style="color: #9cdcfe;">"max_tokens"</span>: <span
+                                            style="color: #b5cea8;">1024</span>,
+                                        <span style="color: #9cdcfe;">"messages"</span>: [{"role": <span
+                                            style="color: #ce9178;">"user"</span>, "content": <span
+                                            style="color: #ce9178;">"Hello"</span>}],
+                                        <span style="color: #9cdcfe;">"stream"</span>: <span
+                                            style="color: #569cd6;">false</span>
+                                        }
+                                    </div>
                                 </div>
                                 <div>
                                     <div class="code-snippet" style="white-space: pre;">
-<span style="color: #569cd6;">curl</span> <span class="dynamic-host"></span>/v1/messages \
-  -H <span style="color: #ce9178;">"Content-Type: application/json"</span> \
-  -H <span style="color: #ce9178;">"x-api-key: sk-12345"</span> \
-  -H <span style="color: #ce9178;">"anthropic-version: 2023-06-01"</span> \
-  -d <span style="color: #ce9178;">'{
-    "model": "claude-sonnet-4.5",
-    "max_tokens": 1024,
-    "messages": [{"role": "user", "content": "Hello"}]
-  }'</span>
-<button class="copy-btn" onclick="copyToClipboard('curl ' + window.location.origin + '/v1/messages -H \"Content-Type: application/json\" -H \"x-api-key: sk-12345\" -H \"anthropic-version: 2023-06-01\" -d \'{\"model\": \"claude-sonnet-4.5\", \"max_tokens\": 1024, \"messages\": [{\"role\": \"user\", \"content\": \"Hello\"}]}\'', this)"><i data-lucide="copy" style="width:12px;height:12px;"></i> Copy</button>
+                                        <span style="color: #569cd6;">curl</span> <span
+                                            class="dynamic-host"></span>/v1/messages \
+                                        -H <span style="color: #ce9178;">"Content-Type: application/json"</span> \
+                                        -H <span style="color: #ce9178;">"x-api-key: sk-12345"</span> \
+                                        -H <span style="color: #ce9178;">"anthropic-version: 2023-06-01"</span> \
+                                        -d <span style="color: #ce9178;">'{
+                                            "model": "claude-3-5-sonnet-20241022",
+                                            "max_tokens": 1024,
+                                            "messages": [{"role": "user", "content": "Hello"}]
+                                            }'</span>
+                                        <button class="copy-btn"
+                                            onclick="copyToClipboard('curl ' + window.location.origin + '/v1/messages -H \"
+                                            Content-Type: application/json\" -H \"x-api-key: sk-12345\" -H
+                                            \"anthropic-version: 2023-06-01\" -d \'{\"model\":
+                                            \"claude-3-5-sonnet-20241022\", \"max_tokens\": 1024, \"messages\":
+                                            [{\"role\": \"user\", \"content\": \"Hello\"}]}\'', this)"><i
+                                                class="fa fa-copy" style="width:12px;height:12px;"></i> Copy</button>
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Integrations Tab -->
+                <section id="tab-integrations" class="tab-content">
+                    <div class="ds-section__header">
+                        <h2 class="ds-section__title">Integrations & CLI</h2>
+                        <p class="ds-section__desc">Ready-to-use CLI commands to connect your favorite AI tools directly
+                            to Kiro.</p>
+                    </div>
+
+                    <div class="card" style="padding: var(--space-8);">
+                        <!-- Claude Code -->
+                        <div class="doc-section">
+                            <h3 class="ds-subsection__title">Claude Code (Anthropic CLI)</h3>
+                            <p class="text-dim"
+                                style="margin-bottom: var(--space-6); max-width: 600px; line-height: 1.6;">
+                                Connect Anthropic's official <code>claude</code> CLI to Kiro. The CLI will communicate
+                                using Kiro's proxy URL and your configured models. Note: You must select an Anthropic
+                                model (like <code>claude-3-5-sonnet-20241022-v2:0</code>).
+                            </p>
+                            <div class="code-snippet" style="white-space: pre;"><span
+                                    style="color: #569cd6;">export</span> <span
+                                    style="color: #9cdcfe;">ANTHROPIC_BASE_URL</span>=<span
+                                    style="color: #ce9178;">"<span class="dynamic-host"></span>"</span> && \
+                                <span style="color: #569cd6;">export</span> <span
+                                    style="color: #9cdcfe;">ANTHROPIC_AUTH_TOKEN</span>=<span
+                                    style="color: #ce9178;">"<span
+                                        class="active-account-id">kiro-local-session</span>"</span> && \
+                                <span style="color: #569cd6;">export</span> <span
+                                    style="color: #9cdcfe;">ANTHROPIC_API_KEY</span>=<span
+                                    style="color: #ce9178;">"<span
+                                        class="active-account-id">kiro-local-session</span>"</span> && \
+                                <span style="color: #569cd6;">claude</span> --model <span
+                                    style="color: #ce9178;">claude-sonnet-4.5</span>
+                                <button class="copy-btn"
+                                    onclick="copyToClipboard('export ANTHROPIC_BASE_URL=&quot;' + window.location.origin + '&quot; && \\\nexport ANTHROPIC_AUTH_TOKEN=&quot;' + document.querySelector('.active-account-id').textContent + '&quot; && \\\nexport ANTHROPIC_API_KEY=&quot;' + document.querySelector('.active-account-id').textContent + '&quot; && \\\nclaude --model claude-sonnet-4.5', this)"><i
+                                        class="fa fa-copy" style="width:12px;height:12px;"></i> Copy</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- Prompts Tab -->
+                <section id="tab-prompts" class="tab-content">
+                    <div class="ds-section__header">
+                        <h2 class="ds-section__title">Prompt Engineering</h2>
+                        <p class="ds-section__desc">Design and customize how your prompts are formatted and expanded.</p>
+                    </div>
+
+                    <div class="card" style="padding: var(--space-8);">
+                        <div class="doc-section">
+                            <h3 class="ds-subsection__title">Global Prompt Template</h3>
+                            <p class="text-dim" style="margin-bottom: var(--space-4); font-size: 14px;">
+                                This template wraps every request sent to CodeWhisperer. Use <code>{{system}}</code> for the system prompt and <code>{{request}}</code> for the user message.
+                            </p>
+                            <div class="form-group">
+                                <textarea id="settings-prompt-template" class="form-input" rows="8" style="font-family: 'Ubuntu Mono', monospace; font-size: 13px; line-height: 1.5;"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="doc-section">
+                            <h3 class="ds-subsection__title">Custom Shortcodes / Predefined Prompts</h3>
+                            <p class="text-dim" style="margin-bottom: var(--space-4); font-size: 14px;">
+                                Define custom tags that will be automatically replaced in your prompts. You can use these to add expert personas or predefined instructions.
+                            </p>
+                            
+                            <div id="shortcodes-list" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: var(--space-4);">
+                                <!-- Shortcode rows added dynamically -->
+                            </div>
+                            
+                            <button class="btn btn--outline btn--sm" id="btn-add-shortcode">
+                                <i class="fa fa-plus" style="width:12px;height:12px;"></i> Add Shortcode
+                            </button>
+                        </div>
+
+                        <div style="margin-top: var(--space-8); display: flex; justify-content: flex-end; gap: 12px;">
+                            <button class="btn btn--outline" id="btn-reset-prompt-settings">
+                                <i class="fa fa-rotate-left" style="width:14px;height:14px;margin-right:8px;"></i> Restore Defaults
+                            </button>
+                            <button class="btn btn--primary" id="btn-save-prompt-settings">
+                                <i class="fa fa-save" style="width:16px;height:16px;margin-right:8px;"></i> Save Prompt Settings
+                            </button>
                         </div>
                     </div>
                 </section>
@@ -421,9 +603,11 @@
                         <p class="ds-section__desc">Test models directly with contextual history controls.</p>
                     </div>
 
-                    <div class="card" style="display: flex; flex-direction: column; height: 75vh; padding: var(--space-6);">
+                    <div class="card"
+                        style="display: flex; flex-direction: column; height: 75vh; padding: var(--space-6);">
                         <!-- Chat Controls -->
-                        <div style="display: flex; gap: var(--space-4); margin-bottom: var(--space-4); align-items: flex-end; border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-4);">
+                        <div
+                            style="display: flex; gap: var(--space-4); margin-bottom: var(--space-4); align-items: flex-end; border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-4);">
                             <div class="form-group" style="margin-bottom: 0; flex: 1;">
                                 <label class="form-label">Model</label>
                                 <select id="playground-model" class="form-input">
@@ -432,60 +616,76 @@
                             </div>
                             <div class="form-group" style="margin-bottom: 0; width: 220px;">
                                 <label class="form-label">History Limit (Last N Msgs)</label>
-                                <input type="number" id="playground-history-limit" class="form-input" value="5" min="0" max="100">
+                                <input type="number" id="playground-history-limit" class="form-input" value="5" min="0"
+                                    max="100">
                             </div>
-                            <button class="btn btn--outline" id="btn-system-prompt" style="height: 42px; padding: 0 12px;" title="Set System Prompt">
-                                <i data-lucide="settings-2" style="width: 18px; height: 18px;"></i>
+                            <button class="btn btn--outline" id="btn-system-prompt"
+                                style="height: 42px; padding: 0 12px;" title="Set System Prompt">
+                                <i class="fa fa-cog" style="width: 18px; height: 18px;"></i>
                             </button>
                             <button class="btn btn--outline" id="btn-clear-chat" style="height: 42px;">
-                                <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i> Clear
+                                <i class="fa fa-trash" style="width: 16px; height: 16px;"></i> Clear
                             </button>
                         </div>
 
                         <!-- Chat Messages Area -->
-                        <div id="playground-messages" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); margin-bottom: var(--space-4); background-color: rgba(0,0,0,0.02); border-radius: var(--radius-lg); border: 1px solid var(--color-border-light);">
-                            <div id="playground-empty-state" style="text-align: center; color: var(--color-text-tertiary); margin-top: auto; margin-bottom: auto; display: flex; flex-direction: column; align-items: center; gap: var(--space-3);">
-                                <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary)); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);">
-                                    <i data-lucide="sparkles" style="width: 32px; height: 32px;"></i>
+                        <div id="playground-messages"
+                            style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); margin-bottom: var(--space-4); background-color: rgba(0,0,0,0.02); border-radius: var(--radius-lg); border: 1px solid var(--color-border-light);">
+                            <div id="playground-empty-state"
+                                style="text-align: center; color: var(--color-text-tertiary); margin-top: auto; margin-bottom: auto; display: flex; flex-direction: column; align-items: center; gap: var(--space-3);">
+                                <div
+                                    style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary)); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);">
+                                    <i class="fa fa-star" style="width: 32px; height: 32px;"></i>
                                 </div>
                                 <div>
-                                    <h3 style="color: var(--color-text); font-weight: 600; margin-bottom: 4px;">How can I help you today?</h3>
-                                    <p style="font-size: var(--text-sm);">Select a model above and start a conversation.</p>
+                                    <h3 style="color: var(--color-text); font-weight: 600; margin-bottom: 4px;">How can
+                                        I help you today?</h3>
+                                    <p style="font-size: var(--text-sm);">Select a model above and start a conversation.
+                                    </p>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Chat Input Area -->
-                        <div style="background-color: var(--color-surface); border: 1px solid var(--color-border); border-radius: 24px; padding: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); transition: border-color 0.2s; display: flex; flex-direction: column;">
-                            <div id="playground-attachments-preview" style="display: flex; gap: 8px; flex-wrap: wrap; padding: 0 12px;"></div>
-                            
+                        <div
+                            style="background-color: var(--color-surface); border: 1px solid var(--color-border); border-radius: 24px; padding: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); transition: border-color 0.2s; display: flex; flex-direction: column;">
+                            <div id="playground-attachments-preview"
+                                style="display: flex; gap: 8px; flex-wrap: wrap; padding: 0 12px;"></div>
+
                             <div style="position: relative; display: flex; align-items: flex-end;">
-                                <input type="file" id="playground-file-input" multiple accept=".pdf,.docx,.doc,.txt,.md,.csv,.json,.xml,.yaml,.xlsx,.html,.png,.jpg,.jpeg,.gif,.webp" style="display: none;">
-                                <button class="btn btn--ghost btn--icon" id="btn-attach-file" style="margin-bottom: 4px; margin-left: 4px; color: var(--color-text-tertiary);" title="Attach Files">
-                                    <i data-lucide="paperclip" style="width: 20px; height: 20px;"></i>
+                                <input type="file" id="playground-file-input" multiple
+                                    accept=".pdf,.docx,.doc,.txt,.md,.csv,.json,.xml,.yaml,.xlsx,.html,.png,.jpg,.jpeg,.gif,.webp"
+                                    style="display: none;">
+                                <button class="btn btn--ghost btn--icon" id="btn-attach-file"
+                                    style="margin-bottom: 4px; margin-left: 4px; color: var(--color-text-tertiary);"
+                                    title="Attach Files">
+                                    <i class="fa fa-paperclip" style="width: 20px; height: 20px;"></i>
                                 </button>
-                                <textarea id="playground-input" class="form-input" rows="1" placeholder="Ask Kiro AI anything... (Shift+Enter for new line)" style="resize: none; font-family: var(--font-primary); padding: 12px 60px 12px 12px; border: none; background: transparent; min-height: 48px; max-height: 120px; overflow-y: auto; line-height: 1.5; box-shadow: none; flex: 1; margin: 0; outline: none;"></textarea>
-                                <button class="btn btn--primary" id="btn-send-chat" style="position: absolute; right: 8px; bottom: 8px; width: 36px; height: 36px; border-radius: 50%; padding: 0; display: flex; justify-content: center; align-items: center; background-color: var(--color-primary-light); box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);">
-                                    <i data-lucide="arrow-up" style="width: 18px; height: 18px; stroke-width: 3px;"></i>
+                                <textarea id="playground-input" class="form-input" rows="1"
+                                    placeholder="Ask Kiro AI anything... (Shift+Enter for new line)"
+                                    style="resize: none; font-family: var(--font-primary); padding: 12px 60px 12px 12px; border: none; background: transparent; min-height: 48px; max-height: 120px; overflow-y: auto; line-height: 1.5; box-shadow: none; flex: 1; margin: 0; outline: none;"></textarea>
+                                <button class="btn btn--primary" id="btn-send-chat"
+                                    style="position: absolute; right: 8px; bottom: 8px; width: 36px; height: 36px; border-radius: 50%; padding: 0; display: flex; justify-content: center; align-items: center; background-color: var(--color-primary-light); box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);">
+                                    <i class="fa fa-arrow-up" style="width: 18px; height: 18px; stroke-width: 3px;"></i>
                                 </button>
                             </div>
                         </div>
 
                     </div>
                 </section>
-    </div>
+            </div>
 
-    <!-- FOOTER -->
-    <footer
-        style="padding: var(--space-6) var(--space-8); border-top: 1px solid var(--color-border); margin-top: auto; display: flex; justify-content: space-between; align-items: center; color: var(--color-text-tertiary); font-size: var(--text-sm);">
-        <div>
-            &copy; 2026 Kiro AI.
-        </div>
-        <div>
-            <span>v1.0.1-Kiro-Core (Fixed)</span>
-        </div>
-    </footer>
-    </main>
+            <!-- FOOTER -->
+            <footer
+                style="padding: var(--space-6) var(--space-8); border-top: 1px solid var(--color-border); margin-top: auto; display: flex; justify-content: space-between; align-items: center; color: var(--color-text-tertiary); font-size: var(--text-sm);">
+                <div>
+                    &copy; 2026 Kiro AI by <a href="https://usmandevx.com" target="_blank" style="color: inherit; text-decoration: none;">Usman Khalid</a>.
+                </div>
+                <div>
+                    <span>v1.0.1-Kiro-Core (Fixed)</span>
+                </div>
+            </footer>
+        </main>
     </div>
 
     <!-- Modal for Adding Account -->
@@ -495,7 +695,7 @@
             <div
                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
                 <h3 class="ds-subsection__title">Add Kiro Account</h3>
-                <button class="btn btn--ghost btn--icon btn--sm" id="btn-close-modal"><i data-lucide="x"></i></button>
+                <button class="btn btn--ghost btn--icon btn--sm" id="btn-close-modal"><i class="fa fa-times"></i></button>
             </div>
             <form id="add-account-form">
                 <div class="form-group">
@@ -529,7 +729,7 @@
                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
                 <h3 class="ds-subsection__title">Complete Auto Login</h3>
                 <button class="btn btn--ghost btn--icon btn--sm" id="btn-close-oauth-modal"><i
-                        data-lucide="x"></i></button>
+                        class="fa fa-times"></i></button>
             </div>
             <p style="margin-bottom: var(--space-4); font-size: 14px; color: var(--color-text-secondary);">
                 A new window has opened for you to authenticate with AWS. Once you see a "Site cannot be reached" error
@@ -540,6 +740,12 @@
                     <label class="form-label">Redirected URL</label>
                     <input type="text" id="oauth-pasted-url" class="form-input"
                         placeholder="http://localhost:3128/oauth/callback?code=..." required>
+                </div>
+                <div id="oauth-error-msg"
+                    style="display:none; margin-top: var(--space-3); padding: 10px 14px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; color: #ef4444; font-size: 13px; line-height: 1.5;">
+                </div>
+                <div id="oauth-success-msg"
+                    style="display:none; margin-top: var(--space-3); padding: 10px 14px; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); border-radius: 8px; color: #10b981; font-size: 13px; line-height: 1.5;">
                 </div>
                 <button type="submit" id="btn-submit-oauth" class="btn btn--primary"
                     style="width: 100%; margin-top: var(--space-5);">Extract Account</button>
@@ -556,15 +762,16 @@
                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
                 <h3 class="ds-subsection__title">System Prompt</h3>
                 <button class="btn btn--ghost btn--icon btn--sm" id="btn-close-system-prompt"><i
-                        data-lucide="x"></i></button>
+                        class="fa fa-times"></i></button>
             </div>
-            
+
             <p style="color: var(--color-text-secondary); margin-bottom: var(--space-4); font-size: var(--text-sm);">
                 Provide instructions to set the behavior and persona of the AI assistant for the Playground Chat.
             </p>
 
             <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
-                <textarea id="playground-system-prompt" class="form-input" rows="6" placeholder="You are a helpful and concise AI assistant."
+                <textarea id="playground-system-prompt" class="form-input" rows="6"
+                    placeholder="You are a helpful and concise AI assistant."
                     style="flex: 1; font-family: var(--font-primary); resize: vertical;"></textarea>
             </div>
 
@@ -584,7 +791,7 @@
                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
                 <h3 class="ds-subsection__title">Test Chat</h3>
                 <button class="btn btn--ghost btn--icon btn--sm" id="btn-close-test-modal"><i
-                        data-lucide="x"></i></button>
+                        class="fa fa-times"></i></button>
             </div>
 
             <div class="form-group" style="margin-bottom: var(--space-4);">
@@ -602,7 +809,7 @@
 
             <button class="btn btn--primary" id="btn-test-chat-send"
                 style="width: 100%; margin-bottom: var(--space-4);">
-                <i data-lucide="send" style="width: 16px; height: 16px; margin-right: 8px;"></i> Send Request
+                <i class="fa fa-paper-plane" style="width: 16px; height: 16px; margin-right: 8px;"></i> Send Request
             </button>
 
             <div class="form-group" style="flex: 1; display: flex; flex-direction: column; min-height: 150px;">
@@ -618,6 +825,88 @@
         </div>
     </div>
 
+    <!-- Kiro Switch Command Modal -->
+    <div class="ds-modal-overlay" id="kiro-switch-modal"
+        style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(6px);">
+        <div class="card" style="padding: var(--space-6); width: 640px; max-width: 92vw;">
+            <!-- Header -->
+            <div
+                style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-5);">
+                <div style="display: flex; align-items: center; gap: var(--space-3);">
+                    <div
+                        style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary)); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0;">
+                        <i class="fa fa-terminal" style="width: 20px; height: 20px;"></i>
+                    </div>
+                    <div>
+                        <h3 class="ds-subsection__title" style="margin: 0;">Switch Kiro Account</h3>
+                        <p id="switch-cmd-account-name"
+                            style="margin: 2px 0 0; font-size: 13px; color: var(--color-text-secondary);"></p>
+                    </div>
+                </div>
+                <button class="btn btn--ghost btn--icon btn--sm" id="btn-close-switch-modal"><i
+                        class="fa fa-times"></i></button>
+            </div>
+
+            <!-- Body -->
+            <div id="switch-cmd-body">
+                <!-- Loading state -->
+                <div id="switch-cmd-loading" style="text-align: center; padding: 2.5rem 1rem;">
+                    <i class="fa fa-spinner fa-spin" class="spin"
+                        style="width: 28px; height: 28px; color: var(--color-primary);"></i>
+                    <p class="text-dim" style="margin-top: 1rem; font-size: 14px;">Generating secure switch command...
+                    </p>
+                </div>
+
+                <!-- Command state -->
+                <div id="switch-cmd-result" style="display: none;">
+                    <div
+                        style="background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.03)); border: 1px solid rgba(16,185,129,0.2); border-radius: 10px; padding: var(--space-4); margin-bottom: var(--space-4);">
+                        <div
+                            style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3);">
+                            <i class="fa fa-info-circle" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
+                            <span
+                                style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-primary);">How
+                                to use</span>
+                        </div>
+                        <p style="font-size: 13px; color: var(--color-text-secondary); line-height: 1.6; margin: 0;">
+                            Copy the command below and paste it in your <strong>local terminal</strong>. It writes the
+                            account token directly to Kiro's auth cache — Kiro IDE will use this account on the next
+                            request.</p>
+                    </div>
+
+                    <label
+                        style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-tertiary); display: block; margin-bottom: var(--space-2);">Terminal
+                        Command</label>
+                    <div style="position: relative;">
+                        <div id="switch-cmd-output"
+                            style="font-family: 'Ubuntu Mono', 'Fira Code', monospace; font-size: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: var(--space-4); padding-right: 80px; word-break: break-all; white-space: pre-wrap; line-height: 1.7; color: var(--color-primary); max-height: 180px; overflow-y: auto; user-select: all;">
+                        </div>
+                        <button id="btn-copy-switch-cmd" onclick="copySwitchCmd()"
+                            style="position: absolute; top: 8px; right: 8px; padding: 6px 12px; border-radius: 6px; border: none; background: var(--color-primary); color: white; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: opacity 0.2s;">
+                            <i class="fa fa-copy" style="width: 12px; height: 12px;"></i> Copy
+                        </button>
+                    </div>
+
+                    <div
+                        style="margin-top: var(--space-4); padding: var(--space-3) var(--space-4); background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 8px; display: flex; align-items: flex-start; gap: var(--space-2);">
+                        <i class="fa fa-exclamation-triangle"
+                            style="width: 14px; height: 14px; color: #F59E0B; flex-shrink: 0; margin-top: 2px;"></i>
+                        <p style="font-size: 12px; color: var(--color-text-secondary); margin: 0; line-height: 1.5;">
+                            Tokens expire after ~1 hour. If Kiro says you're not authenticated, re-open this dialog to
+                            regenerate a fresh token.</p>
+                    </div>
+                </div>
+
+                <!-- Error state -->
+                <div id="switch-cmd-error" style="display: none; text-align: center; padding: 1.5rem;">
+                    <i class="fa fa-times-circle"
+                        style="width: 32px; height: 32px; color: var(--color-danger); margin-bottom: 0.75rem;"></i>
+                    <p id="switch-cmd-error-msg" style="color: var(--color-danger); font-size: 14px;"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal for Account Information -->
     <div class="ds-modal-overlay" id="account-info-modal"
         style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
@@ -627,11 +916,11 @@
                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
                 <h3 class="ds-subsection__title">Account Information</h3>
                 <button class="btn btn--ghost btn--icon btn--sm" id="btn-close-info-modal"><i
-                        data-lucide="x"></i></button>
+                        class="fa fa-times"></i></button>
             </div>
             <div id="account-info-content">
                 <div style="text-align: center; padding: 2rem;">
-                    <i data-lucide="loader" class="spin" style="width:24px;height:24px;color:var(--color-primary);"></i>
+                    <i class="fa fa-spinner fa-spin" class="spin" style="width:24px;height:24px;color:var(--color-primary);"></i>
                     <p class="text-dim" style="margin-top: 1rem;">Loading usage data from AWS...</p>
                 </div>
             </div>
@@ -639,9 +928,26 @@
     </div>
 
     <script>
-        lucide.createIcons();
+        // Sidebar Toggle for Mobile
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.querySelector('.ds-sidebar-toggle');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
 
-        // Tab Switching
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('active');
+            });
+        }
+
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('active');
+            });
+        }
+
+        // Close sidebar on link click (mobile)
         const links = document.querySelectorAll('.ds-sidebar__link[data-tab]');
         const contents = document.querySelectorAll('.tab-content');
 
@@ -652,6 +958,11 @@
                 contents.forEach(c => c.classList.remove('active'));
                 link.classList.add('active');
                 document.getElementById(`tab-${tab}`).classList.add('active');
+
+                if (window.innerWidth <= 768) {
+                    sidebar.classList.remove('open');
+                    sidebarOverlay.classList.remove('active');
+                }
             });
         });
 
@@ -672,8 +983,13 @@
                     tbody.innerHTML = '';
                     if (data.accounts.length === 0) {
                         tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-dim">No accounts added yet.</td></tr>`;
+                        document.querySelectorAll('.active-account-id').forEach(el => el.textContent = 'kiro-local-session');
                         return;
                     }
+
+                    // Update Integrations ID to the first (default) account
+                    document.querySelectorAll('.active-account-id').forEach(el => el.textContent = data.accounts[0].id);
+
                     data.accounts.forEach(acc => {
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
@@ -682,9 +998,10 @@
                             <td>${acc.region}</td>
                             <td><span style="color: #10B981;">${acc.status}</span></td>
                             <td style="display: flex; gap: 8px;">
-                                <button class="btn btn--secondary btn--sm btn--icon" style="padding: 0.5rem;" title="Test Chat" onclick="openTestModal('${acc.profile_arn}')"><i data-lucide="message-square" style="width:16px;height:16px;"></i></button>
-                                <button class="btn btn--secondary btn--sm btn--icon" style="padding: 0.5rem;" title="Information" onclick="showAccountInfo('${acc.profile_arn}')"><i data-lucide="info" style="width:16px;height:16px;"></i></button>
-                                <button class="btn btn--danger btn--sm btn--icon" style="padding: 0.5rem;" title="Delete Account" onclick="deleteAccount('${acc.profile_arn}')"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
+                                <button class="btn btn--secondary btn--sm btn--icon" style="padding: 0.5rem;" title="Test Chat" onclick="openTestModal(${acc.id})"><i class="fa fa-comment-dots" style="width:16px;height:16px;"></i></button>
+                                <button class="btn btn--secondary btn--sm btn--icon" style="padding: 0.5rem;" title="Information" onclick="showAccountInfo(${acc.id})"><i class="fa fa-info-circle" style="width:16px;height:16px;"></i></button>
+                                <button class="btn btn--outline btn--sm btn--icon" style="padding: 0.5rem; border-color: var(--color-primary); color: var(--color-primary);" title="Switch to this Kiro Account" onclick="showSwitchCmd(${acc.id}, '${(acc.name || 'Unnamed').replace(/'/g, "\\'")}')"><i class="fa fa-terminal" style="width:16px;height:16px;"></i></button>
+                                <button class="btn btn--danger btn--sm btn--icon" style="padding: 0.5rem;" title="Delete Account" onclick="deleteAccount(${acc.id})"><i class="fa fa-trash" style="width:16px;height:16px;"></i></button>
                             </td>
                         `;
                         tbody.appendChild(tr);
@@ -728,23 +1045,17 @@
 
         btnOauthLogin.addEventListener('click', () => {
             btnOauthLogin.disabled = true;
-            btnOauthLogin.innerHTML = '<i data-lucide="loader" class="spin" style="width:16px;height:16px;"></i> Starting...';
-            lucide.createIcons();
+            btnOauthLogin.innerHTML = '<i class="fa fa-spinner fa-spin" class="spin" style="width:16px;height:16px;"></i> Starting...';
 
             fetch('/d-api/accounts/oauth/start', { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
                     btnOauthLogin.disabled = false;
-                    btnOauthLogin.innerHTML = '<i data-lucide="log-in" style="width:16px;height:16px;"></i> Auto Login (OAuth)';
-                    lucide.createIcons();
+                    btnOauthLogin.innerHTML = '<i class="fa fa-sign-in-alt" style="width:16px;height:16px;"></i> Auto Login (OAuth)';
 
                     if (data.success) {
-                        // Open popup
-                        const width = 600;
-                        const height = 700;
-                        const left = (screen.width / 2) - (width / 2);
-                        const top = (screen.height / 2) - (height / 2);
-                        window.open(data.url, 'KiroAuth', `width=${width},height=${height},left=${left},top=${top}`);
+                        // Open in new tab
+                        window.open(data.url, '_blank');
 
                         // Show paste modal
                         oauthModal.style.display = 'flex';
@@ -757,8 +1068,7 @@
                 .catch(err => {
                     console.error(err);
                     btnOauthLogin.disabled = false;
-                    btnOauthLogin.innerHTML = '<i data-lucide="log-in" style="width:16px;height:16px;"></i> Auto Login (OAuth)';
-                    lucide.createIcons();
+                    btnOauthLogin.innerHTML = '<i class="fa fa-sign-in-alt" style="width:16px;height:16px;"></i> Auto Login (OAuth)';
                     alert('Error starting OAuth flow');
                 });
         });
@@ -768,9 +1078,13 @@
             const pastedUrl = document.getElementById('oauth-pasted-url').value;
             if (!pastedUrl) return;
 
+            const errBox = document.getElementById('oauth-error-msg');
+            const successBox = document.getElementById('oauth-success-msg');
+            errBox.style.display = 'none';
+            successBox.style.display = 'none';
+
             btnSubmitOauth.disabled = true;
-            btnSubmitOauth.innerHTML = '<i data-lucide="loader" class="spin" style="width:16px;height:16px;"></i> Extracting...';
-            lucide.createIcons();
+            btnSubmitOauth.innerHTML = '<i class="fa fa-spinner fa-spin" class="spin" style="width:16px;height:16px;"></i> Extracting...';
 
             fetch('/d-api/accounts/oauth/callback', {
                 method: 'POST',
@@ -783,23 +1097,80 @@
                     btnSubmitOauth.innerHTML = 'Extract Account';
 
                     if (data.success) {
-                        oauthModal.style.display = 'none';
-                        fetchAccounts();
+                        const verb = data.status === 'updated' ? 'Updated' : 'Added';
+                        successBox.textContent = '✅ Account ' + verb + ': ' + (data.name || 'Kiro Account');
+                        successBox.style.display = 'block';
+                        setTimeout(() => {
+                            oauthModal.style.display = 'none';
+                            successBox.style.display = 'none';
+                            fetchAccounts();
+                        }, 1500);
                     } else {
-                        alert(data.error || 'Authentication failed');
+                        errBox.textContent = '❌ ' + (data.error || 'Authentication failed');
+                        errBox.style.display = 'block';
                     }
                 })
                 .catch(err => {
                     btnSubmitOauth.disabled = false;
                     btnSubmitOauth.innerHTML = 'Extract Account';
-                    alert('Error processing URL');
+                    errBox.textContent = '❌ Network error: ' + err.message;
+                    errBox.style.display = 'block';
                 });
         });
 
+        // ==========================================
+        // Kiro Switch Command Modal Logic
+        // ==========================================
+        const switchModal = document.getElementById('kiro-switch-modal');
+        document.getElementById('btn-close-switch-modal').addEventListener('click', () => switchModal.style.display = 'none');
+
+        let _currentSwitchCmd = '';
+
+        window.showSwitchCmd = function (accountId, name) {
+            // Show modal, reset to loading state
+            switchModal.style.display = 'flex';
+            document.getElementById('switch-cmd-account-name').textContent = name;
+            document.getElementById('switch-cmd-loading').style.display = 'block';
+            document.getElementById('switch-cmd-result').style.display = 'none';
+            document.getElementById('switch-cmd-error').style.display = 'none';
+
+            fetch(`/d-api/accounts/${accountId}/switch-cmd`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('switch-cmd-loading').style.display = 'none';
+                    if (data.success) {
+                        _currentSwitchCmd = data.command;
+                        document.getElementById('switch-cmd-output').textContent = data.command;
+                        document.getElementById('switch-cmd-result').style.display = 'block';
+                    } else {
+                        document.getElementById('switch-cmd-error-msg').textContent = data.error || 'Unknown error';
+                        document.getElementById('switch-cmd-error').style.display = 'block';
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('switch-cmd-loading').style.display = 'none';
+                    document.getElementById('switch-cmd-error-msg').textContent = 'Network error: ' + err.message;
+                    document.getElementById('switch-cmd-error').style.display = 'block';
+                });
+        };
+
+        window.copySwitchCmd = function () {
+            if (!_currentSwitchCmd) return;
+            navigator.clipboard.writeText(_currentSwitchCmd).then(() => {
+                const btn = document.getElementById('btn-copy-switch-cmd');
+                btn.innerHTML = '<i class="fa fa-check" style="width:12px;height:12px;"></i> Copied!';
+                btn.style.background = '#059669';
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fa fa-copy" style="width:12px;height:12px;"></i> Copy';
+                    btn.style.background = 'var(--color-primary)';
+                }, 2500);
+            });
+        };
+
         // Delete Account
-        window.deleteAccount = function (arn) {
+        window.deleteAccount = function (accountId) {
             if (confirm('Are you sure you want to delete this account?')) {
-                fetch(`/d-api/accounts/${arn}`, { method: 'DELETE' })
+                fetch(`/d-api/accounts/${accountId}`, { method: 'DELETE' })
                     .then(res => res.json())
                     .then(data => {
                         if (data.success) {
@@ -844,8 +1215,7 @@
             const tbody = document.getElementById('models-table-body');
 
             btn.disabled = true;
-            btn.innerHTML = '<i data-lucide="loader" class="spin" style="width:16px;height:16px;"></i> Refreshing...';
-            lucide.createIcons();
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin" class="spin" style="width:16px;height:16px;"></i> Refreshing...';
 
             tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--color-text-secondary);">Fetching from AWS...</td></tr>`;
 
@@ -853,8 +1223,7 @@
                 .then(res => res.json())
                 .then(data => {
                     btn.disabled = false;
-                    btn.innerHTML = '<i data-lucide="refresh-cw" style="width:16px;height:16px;"></i> Refresh Models';
-                    lucide.createIcons();
+                    btn.innerHTML = '<i class="fa fa-sync" style="width:16px;height:16px;"></i> Refresh Models';
 
                     if (data.success && data.models) {
                         tbody.innerHTML = '';
@@ -873,8 +1242,7 @@
                 })
                 .catch(err => {
                     btn.disabled = false;
-                    btn.innerHTML = '<i data-lucide="refresh-cw" style="width:16px;height:16px;"></i> Refresh Models';
-                    lucide.createIcons();
+                    btn.innerHTML = '<i class="fa fa-sync" style="width:16px;height:16px;"></i> Refresh Models';
 
                     tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--color-danger);">Error refreshing models.</td></tr>`;
                     console.error('Error refreshing models:', err);
@@ -885,18 +1253,17 @@
         const infoModal = document.getElementById('account-info-modal');
         document.getElementById('btn-close-info-modal').addEventListener('click', () => infoModal.style.display = 'none');
 
-        window.showAccountInfo = function (arn) {
+        window.showAccountInfo = function (accountId) {
             infoModal.style.display = 'flex';
             const content = document.getElementById('account-info-content');
             content.innerHTML = `
                 <div style="text-align: center; padding: 2rem;">
-                    <i data-lucide="loader" class="spin" style="width:24px;height:24px;color:var(--color-primary);"></i>
+                    <i class="fa fa-spinner fa-spin" class="spin" style="width:24px;height:24px;color:var(--color-primary);"></i>
                     <p class="text-dim" style="margin-top: 1rem;">Loading usage data from AWS...</p>
                 </div>
             `;
-            lucide.createIcons();
 
-            fetch(`/d-api/accounts/${encodeURIComponent(arn)}/info`)
+            fetch(`/d-api/accounts/${accountId}/info`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.success && data.data && data.data.usageBreakdownList) {
@@ -947,14 +1314,14 @@
 
         // Test Chat Modal Logic
         const testModal = document.getElementById('test-chat-modal');
-        let currentTestArn = '';
+        let currentTestAccountId = null;
 
         document.getElementById('btn-close-test-modal').addEventListener('click', () => {
             testModal.style.display = 'none';
         });
 
-        window.openTestModal = function (arn) {
-            currentTestArn = arn;
+        window.openTestModal = function (accountId) {
+            currentTestAccountId = accountId;
             testModal.style.display = 'flex';
             document.getElementById('test-chat-response').textContent = '';
             document.getElementById('test-chat-prompt').value = 'Hello, who are you?';
@@ -975,7 +1342,6 @@
                         modelSelect.innerHTML = '<option value="auto">Auto</option>';
                     }
                 });
-            lucide.createIcons();
         };
 
         document.getElementById('btn-test-chat-send').addEventListener('click', () => {
@@ -988,8 +1354,7 @@
             if (!prompt) return;
 
             btn.disabled = true;
-            btn.innerHTML = '<i data-lucide="loader" class="spin" style="width: 16px; height: 16px; margin-right: 8px;"></i> Sending...';
-            lucide.createIcons();
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin" class="spin" style="width: 16px; height: 16px; margin-right: 8px;"></i> Sending...';
             responseDiv.textContent = 'Waiting for response...';
             latencySpan.textContent = '';
 
@@ -999,7 +1364,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Profile-Arn': currentTestArn
+                    'X-Account-Id': currentTestAccountId
                 },
                 body: JSON.stringify({
                     model: model,
@@ -1013,8 +1378,7 @@
                     latencySpan.textContent = `${latency}ms`;
 
                     btn.disabled = false;
-                    btn.innerHTML = '<i data-lucide="send" style="width: 16px; height: 16px; margin-right: 8px;"></i> Send Request';
-                    lucide.createIcons();
+                    btn.innerHTML = '<i class="fa fa-paper-plane" style="width: 16px; height: 16px; margin-right: 8px;"></i> Send Request';
 
                     if (data.error) {
                         responseDiv.textContent = 'Error: ' + (data.error.message || JSON.stringify(data.error));
@@ -1031,8 +1395,7 @@
                     latencySpan.textContent = `${latency}ms`;
 
                     btn.disabled = false;
-                    btn.innerHTML = '<i data-lucide="send" style="width: 16px; height: 16px; margin-right: 8px;"></i> Send Request';
-                    lucide.createIcons();
+                    btn.innerHTML = '<i class="fa fa-paper-plane" style="width: 16px; height: 16px; margin-right: 8px;"></i> Send Request';
                     responseDiv.textContent = 'Network or server error: ' + err.message;
                     responseDiv.style.color = 'var(--color-danger)';
                 });
@@ -1041,11 +1404,9 @@
         window.copyToClipboard = function (text, btn) {
             navigator.clipboard.writeText(text).then(() => {
                 const originalHTML = btn.innerHTML;
-                btn.innerHTML = '<i data-lucide="check" style="width:12px;height:12px;"></i> Copied';
-                lucide.createIcons();
+                btn.innerHTML = '<i class="fa fa-check" style="width:12px;height:12px;"></i> Copied';
                 setTimeout(() => {
                     btn.innerHTML = originalHTML;
-                    lucide.createIcons();
                 }, 2000);
             });
         };
@@ -1061,7 +1422,7 @@
         let playgroundHistory = [];
         let playgroundSystemPrompt = "";
 
-        
+
         function loadPlaygroundModels() {
             const select = document.getElementById('playground-model');
             fetch('/d-api/models')
@@ -1111,13 +1472,12 @@
                 msgDiv.style.backgroundColor = 'var(--color-surface-raised)';
                 msgDiv.style.border = '1px solid var(--color-border)';
                 msgDiv.style.color = 'var(--color-text)';
-                msgDiv.innerHTML = `<div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: var(--color-primary-light); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;"><i data-lucide="bot" style="width: 14px; height: 14px;"></i> AI Assistant</div><span class="content-span">${content}</span>`;
+                msgDiv.innerHTML = `<div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: var(--color-primary-light); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;"><i class="fa fa-robot" style="width: 14px; height: 14px;"></i> AI Assistant</div><span class="content-span">${content}</span>`;
             }
 
             wrapperDiv.appendChild(msgDiv);
             container.appendChild(wrapperDiv);
             container.scrollTop = container.scrollHeight;
-            lucide.createIcons();
             return msgDiv.querySelector('.content-span');
         }
 
@@ -1135,7 +1495,7 @@
             container.innerHTML = `
                 <div id="playground-empty-state" style="text-align: center; color: var(--color-text-tertiary); margin-top: auto; margin-bottom: auto; display: flex; flex-direction: column; align-items: center; gap: var(--space-3);">
                     <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary)); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);">
-                        <i data-lucide="sparkles" style="width: 32px; height: 32px;"></i>
+                        <i class="fa fa-star" style="width: 32px; height: 32px;"></i>
                     </div>
                     <div>
                         <h3 style="color: var(--color-text); font-weight: 600; margin-bottom: 4px;">How can I help you today?</h3>
@@ -1143,7 +1503,6 @@
                     </div>
                 </div>
             `;
-            lucide.createIcons();
         });
 
         // System Prompt Modal Logic
@@ -1170,7 +1529,7 @@
         });
 
         let playgroundFiles = [];
-        
+
         const fileInput = document.getElementById('playground-file-input');
         const previewContainer = document.getElementById('playground-attachments-preview');
 
@@ -1202,28 +1561,27 @@
 
             let iconName = 'file';
             if (file.type.startsWith('image/')) iconName = 'image';
-            else if (file.name.endsWith('.pdf')) iconName = 'file-text';
+            else if (file.name.endsWith('.pdf')) iconName = 'file-pdf';
             else if (file.name.endsWith('.json') || file.name.endsWith('.xml') || file.name.endsWith('.yaml') || file.name.endsWith('.html')) iconName = 'code';
 
             previewDiv.innerHTML = `
-                <i data-lucide="${iconName}" style="width: 14px; height: 14px;"></i>
+                <i class="fa fa-${iconName}" style="width: 14px; height: 14px;"></i>
                 <span style="max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${file.name}</span>
-                <i data-lucide="x" class="remove-attachment" style="width: 14px; height: 14px; cursor: pointer; color: var(--color-danger); margin-left: 4px;"></i>
+                <i class="fa fa-times remove-attachment" style="width: 14px; height: 14px; cursor: pointer; color: var(--color-danger); margin-left: 4px;"></i>
             `;
-            
+
             previewDiv.querySelector('.remove-attachment').addEventListener('click', () => {
                 playgroundFiles = playgroundFiles.filter(f => f !== file);
                 previewDiv.remove();
             });
 
             previewContainer.appendChild(previewDiv);
-            lucide.createIcons();
         }
 
         async function processFileContent(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                
+
                 // Images
                 if (file.type.startsWith('image/')) {
                     reader.onload = (e) => {
@@ -1276,7 +1634,7 @@
                     reader.onload = async (e) => {
                         try {
                             const data = new Uint8Array(e.target.result);
-                            const workbook = XLSX.read(data, {type: 'array'});
+                            const workbook = XLSX.read(data, { type: 'array' });
                             let fullText = '';
                             workbook.SheetNames.forEach(sheetName => {
                                 const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
@@ -1315,11 +1673,10 @@
             // Process Attachments
             let attachmentContent = [];
             const originalIcon = btnSend.innerHTML;
-            
+
             if (playgroundFiles.length > 0) {
                 btnSend.disabled = true;
-                btnSend.innerHTML = '<i data-lucide="loader" class="spin" style="width: 18px; height: 18px; stroke-width: 3px;"></i>';
-                lucide.createIcons();
+                btnSend.innerHTML = '<i class="fa fa-spinner fa-spin" class="spin" style="width: 18px; height: 18px; stroke-width: 3px;"></i>';
 
                 try {
                     const promises = playgroundFiles.map(file => processFileContent(file));
@@ -1328,7 +1685,6 @@
                     alert('Error parsing files: ' + e.message);
                     btnSend.disabled = false;
                     btnSend.innerHTML = originalIcon;
-                    lucide.createIcons();
                     return;
                 }
 
@@ -1336,7 +1692,6 @@
                 playgroundFiles = [];
                 document.getElementById('playground-attachments-preview').innerHTML = '';
                 btnSend.innerHTML = originalIcon;
-                lucide.createIcons();
             }
 
             // Construct Message
@@ -1360,8 +1715,7 @@
             }
 
             const contentSpan = appendPlaygroundMessage('assistant', '<div style="display: flex; gap: 4px; align-items: center; height: 20px;"><div class="typing-dot"></div><div class="typing-dot" style="animation-delay: 0.2s"></div><div class="typing-dot" style="animation-delay: 0.4s"></div></div>');
-            lucide.createIcons();
-            
+
             let finalMessages = [...messagesToSend];
             if (playgroundSystemPrompt) {
                 finalMessages.unshift({ role: 'system', content: playgroundSystemPrompt });
@@ -1405,7 +1759,7 @@
                         }
                     }
                 }
-                
+
                 playgroundHistory.push({ role: 'assistant', content: assistantReply });
 
             } catch (err) {
@@ -1418,9 +1772,115 @@
         }
 
         // Initial Load
+        // --- Prompts Settings ---
+        const btnSavePromptSettings = document.getElementById('btn-save-prompt-settings');
+        const btnAddShortcode = document.getElementById('btn-add-shortcode');
+        const shortcodesList = document.getElementById('shortcodes-list');
+        const templateArea = document.getElementById('settings-prompt-template');
+
+        async function fetchPromptSettings() {
+            try {
+                const resp = await fetch('/d-api/settings/prompts');
+                const data = await resp.json();
+                templateArea.value = data.template || '';
+                
+                shortcodesList.innerHTML = '';
+                if (data.custom_shortcodes) {
+                    data.custom_shortcodes.forEach(sc => addShortcodeRow(sc.tag, sc.value));
+                }
+            } catch (err) {
+                console.error('Failed to fetch prompt settings:', err);
+            }
+        }
+
+        function addShortcodeRow(tag = '', value = '') {
+            const row = document.createElement('div');
+            row.className = 'shortcode-row';
+            row.style.display = 'flex';
+            row.style.gap = '12px';
+            row.style.alignItems = 'flex-start';
+            row.innerHTML = `
+                <div style="width: 200px;">
+                    <input type="text" class="form-input sc-tag" placeholder="[TAG_NAME]" value="${tag}" style="font-family: 'Ubuntu Mono', monospace; font-size: 13px;">
+                </div>
+                <div style="flex: 1;">
+                    <textarea class="form-input sc-value" placeholder="Replacement text..." rows="2" style="font-size: 13px; line-height: 1.4;">${value}</textarea>
+                </div>
+                <button class="btn btn--ghost btn--icon btn-remove-sc" style="color: var(--color-danger); margin-top: 6px;"><i class="fa fa-trash"></i></button>
+            `;
+            
+            row.querySelector('.btn-remove-sc').onclick = () => row.remove();
+            shortcodesList.appendChild(row);
+        }
+
+        btnAddShortcode.onclick = () => addShortcodeRow();
+
+        btnSavePromptSettings.onclick = async () => {
+            const shortcodes = [];
+            document.querySelectorAll('.shortcode-row').forEach(row => {
+                const tag = row.querySelector('.sc-tag').value.trim();
+                const value = row.querySelector('.sc-value').value.trim();
+                if (tag) shortcodes.push({ tag, value });
+            });
+
+            const settings = {
+                template: templateArea.value,
+                custom_shortcodes: shortcodes
+            };
+
+            const originalText = btnSavePromptSettings.innerHTML;
+            btnSavePromptSettings.disabled = true;
+            btnSavePromptSettings.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
+
+            try {
+                const resp = await fetch('/d-api/settings/prompts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    btnSavePromptSettings.innerHTML = '<i class="fa fa-check"></i> Saved!';
+                    setTimeout(() => {
+                        btnSavePromptSettings.disabled = false;
+                        btnSavePromptSettings.innerHTML = originalText;
+                    }, 2000);
+                } else {
+                    alert('Error saving settings');
+                    btnSavePromptSettings.disabled = false;
+                    btnSavePromptSettings.innerHTML = originalText;
+                }
+            } catch (err) {
+                alert('Request failed: ' + err.message);
+                btnSavePromptSettings.disabled = false;
+                btnSavePromptSettings.innerHTML = originalText;
+            }
+        };
+
+        document.getElementById('btn-reset-prompt-settings').onclick = async () => {
+            if (!confirm('Are you sure you want to restore default prompt settings? This will overwrite your current template and shortcodes.')) return;
+
+            try {
+                const resp = await fetch('/d-api/settings/prompts/reset', { method: 'POST' });
+                const result = await resp.json();
+                if (result.success) {
+                    templateArea.value = result.settings.template;
+                    shortcodesList.innerHTML = '';
+                    if (result.settings.custom_shortcodes) {
+                        result.settings.custom_shortcodes.forEach(sc => addShortcodeRow(sc.tag, sc.value));
+                    }
+                    alert('Default settings restored.');
+                }
+            } catch (err) {
+                alert('Reset failed: ' + err.message);
+            }
+        };
+
+        // Initial Load
         fetchAccounts();
         fetchModels();
         loadPlaygroundModels();
+        fetchPromptSettings();
     </script>
 </body>
 
