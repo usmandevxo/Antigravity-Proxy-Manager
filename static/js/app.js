@@ -104,10 +104,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 tr.innerHTML = `
                     <td><strong>${acc.email}</strong></td>
                     <td class="text-dim">${acc.name || 'Unknown'}</td>
-                    <td><span class="badge ${acc.status === 'active' ? 'badge--success' : 'badge--warning'}">${acc.status}</span></td>
+                    <td><span class="badge ${acc.status === 'active' ? 'badge--success' : (acc.status === 'logged_out' ? 'badge--warning' : 'badge--danger')}" 
+                              style="cursor:pointer" title="Click to change status" 
+                              onclick="changeStatus('${acc.email}', '${acc.status}')">${acc.status}</span></td>
                     <td style="font-weight: 500; color: var(--color-primary);">${credits}</td>
                     <td>
                         <div style="display:flex; gap: 0.5rem">
+                            <button class="btn btn--ghost btn--icon btn--sm" title="Terminal Login" onclick="showTerminalCommand('${acc.email}')">
+                                <i data-lucide="terminal"></i>
+                            </button>
                             <button class="btn btn--ghost btn--icon btn--sm" title="Quota Details" onclick="showQuotaDetails('${acc.email}')">
                                 <i data-lucide="list"></i>
                             </button>
@@ -163,6 +168,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    window.changeStatus = async (email, currentStatus) => {
+        const statuses = ['active', 'rejected', 'logged_out'];
+        const nextIdx = (statuses.indexOf(currentStatus) + 1) % statuses.length;
+        const newStatus = statuses[nextIdx];
+
+        if (!confirm(`Change status of ${email} to ${newStatus}?`)) return;
+
+        try {
+            const res = await fetch(`/d-api/accounts/${encodeURIComponent(email)}/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message, 'success');
+                loadAccounts();
+            } else {
+                showToast(data.message, 'error');
+            }
+        } catch (e) {
+            showToast('Network error', 'error');
+        }
+    };
+
     document.getElementById('btn-refresh-all').addEventListener('click', async () => {
         const res = await fetch('/d-api/accounts');
         const data = await res.json();
@@ -173,7 +203,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Quota Details Modal ---
     const quotaModal = document.getElementById('modal-quota');
-    window.showQuotaDetails = (email) => {
+    window.showTerminalCommand = async (email) => {
+        const modal = document.getElementById('modal-terminal');
+        const codeElement = document.getElementById('terminal-command-code');
+        codeElement.textContent = 'Generating command...';
+        modal.classList.add('active');
+
+        try {
+            const res = await fetch(`/d-api/terminal-command/${encodeURIComponent(email)}`);
+            const data = await res.json();
+            if (data.success) {
+                codeElement.textContent = data.command;
+            } else {
+                codeElement.textContent = 'Error: ' + data.error;
+            }
+        } catch (e) {
+            codeElement.textContent = 'Failed to fetch command.';
+        }
+    };
+
+    window.showQuotaDetails = async (email) => {
         const acc = accountsData.find(a => a.email === email);
         if (!acc) return;
 
@@ -618,6 +667,24 @@ document.addEventListener('DOMContentLoaded', () => {
             e.target.checked = !isChecked; // Revert visually
         }
     });
+
+    // Terminal Modal Handlers
+    const terminalModal = document.getElementById('modal-terminal');
+    const closeTerminalModal = () => terminalModal.classList.remove('active');
+
+    document.getElementById('btn-close-terminal-modal').onclick = closeTerminalModal;
+    document.getElementById('btn-close-terminal-modal-top').onclick = closeTerminalModal;
+
+    document.getElementById('btn-copy-terminal').onclick = () => {
+        const code = document.getElementById('terminal-command-code').textContent;
+        if (code && !code.startsWith('Generating') && !code.startsWith('Error')) {
+            navigator.clipboard.writeText(code).then(() => {
+                showToast('Command copied to clipboard!', 'success');
+            }).catch(err => {
+                showToast('Failed to copy command', 'error');
+            });
+        }
+    };
 
     // Load initial tab data
     loadAccounts();

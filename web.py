@@ -366,40 +366,13 @@ def v1_chat_completions():
     return jsonify({'error': {'message': 'Request failed after multiple attempts', 'type': 'server_error'}}), 500
 
 def handle_non_stream_request(gemini_body, access_token, model_name, account):
-    url = f'{proxy.INTERNAL_BASE_URL}:generateContent'
-    try:
-        kwargs = core.get_httpx_kwargs()
-        kwargs['timeout'] = 120.0
-        resp = httpx.post(
-            url,
-            json=gemini_body,
-            headers={
-                'Authorization': f'Bearer {access_token}',
-                'Content-Type': 'application/json',
-                'User-Agent': proxy.USER_AGENT,
-            },
-            **kwargs,
-        )
-        if resp.status_code != 200:
-            return False, {'status': resp.status_code, 'body': {'error': {'message': f'Upstream error: {resp.text[:500]}', 'type': 'upstream_error'}}}
-        
-        gemini_resp = resp.json()
-        if 'response' in gemini_resp and 'candidates' not in gemini_resp:
-            gemini_resp = gemini_resp['response']
-        return True, proxy.convert_gemini_to_openai(gemini_resp, model_name)
-    except Exception as e:
-        return False, {'status': 502, 'body': {'error': {'message': str(e), 'type': 'upstream_error'}}}
-
-def handle_stream_request(gemini_body, access_token, model_name, account):
-    url = f'{proxy.INTERNAL_BASE_URL}:streamGenerateContent?alt=sse'
-    
-    def generate():
-        completion_id = f'chatcmpl-{uuid.uuid4().hex[:12]}'
+    last_err = None
+    for base_url in proxy.INTERNAL_BASE_URLS:
+        url = f'{base_url}:generateContent'
         try:
             kwargs = core.get_httpx_kwargs()
             kwargs['timeout'] = 120.0
-            with httpx.stream(
-                'POST',
+            resp = httpx.post(
                 url,
                 json=gemini_body,
                 headers={
@@ -408,44 +381,122 @@ def handle_stream_request(gemini_body, access_token, model_name, account):
                     'User-Agent': proxy.USER_AGENT,
                 },
                 **kwargs,
-            ) as resp:
-                if resp.status_code != 200:
-                    yield f"data: {json.dumps({'error': {'message': 'Upstream stream error', 'type': 'upstream_error'}})}\n\n"
-                    return
-
-                buffer = ''
-                for chunk in resp.iter_text():
-                    buffer += chunk
-                    lines = buffer.split('\n')
-                    buffer = lines.pop()
-                    for line in lines:
-                        stripped = line.strip()
-                        if not stripped.startswith('data: '): continue
-                        data_str = stripped[6:]
-                        if data_str == '[DONE]': continue
-                        try:
-                            gemini_chunk = json.loads(data_str)
-                            candidates = gemini_chunk.get('candidates', [])
-                            if not candidates: continue
-                            text = ''.join(p.get('text', '') for p in candidates[0].get('content', {}).get('parts', []) if 'text' in p and not p.get('thought'))
-                            if not text: continue
-                            openai_chunk = {
-                                'id': completion_id, 'object': 'chat.completion.chunk', 'created': int(time.time()),
-                                'model': model_name, 'choices': [{'index': 0, 'delta': {'content': text}, 'finish_reason': None}]
-                            }
-                            yield f"data: {json.dumps(openai_chunk)}\n\n"
-                        except: continue
-                
-                final_chunk = {
-                    'id': completion_id, 'object': 'chat.completion.chunk', 'created': int(time.time()),
-                    'model': model_name, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}]
-                }
-                yield f"data: {json.dumps(final_chunk)}\n\n"
-                yield "data: [DONE]\n\n"
+            )
+            if resp.status_code != 200:
+                if resp.status_code == 429:
+                    proxy.mark_account_cooldown(account['email'], 120)
+                err = {'status': resp.status_code, 'body': {'error': {'message': f'Upstream error: {resp.text[:500]}', 'type': 'upstream_error'}}}
+                if resp.status_code == 429 or resp.status_code >= 500:
+                    last_err = err
+                    continue
+                return False, err
+            
+            gemini_resp = resp.json()
+            if 'response' in gemini_resp and 'candidates' not in gemini_resp:
+                gemini_resp = gemini_resp['response']
+            return True, proxy.convert_gemini_to_openai(gemini_resp, model_name)
         except Exception as e:
-            yield f"data: {json.dumps({'error': {'message': str(e), 'type': 'upstream_error'}})}\n\n"
+            last_err = {'status': 502, 'body': {'error': {'message': str(e), 'type': 'upstream_error'}}}
+            continue
+    return False, last_err
+
+def handle_stream_request(gemini_body, access_token, model_name, account):
+    def generate():
+        completion_id = f'chatcmpl-{uuid.uuid4().hex[:12]}'
+        last_err = None
+        for base_url in proxy.INTERNAL_BASE_URLS:
+            url = f'{base_url}:streamGenerateContent?alt=sse'
+            try:
+                kwargs = core.get_httpx_kwargs()
+                kwargs['timeout'] = 120.0
+                with httpx.stream(
+                    'POST',
+                    url,
+                    json=gemini_body,
+                    headers={
+                        'Authorization': f'Bearer {access_token}',
+                        'Content-Type': 'application/json',
+                        'User-Agent': proxy.USER_AGENT,
+                    },
+                    **kwargs,
+                ) as resp:
+                    if resp.status_code != 200:
+                        if resp.status_code == 429:
+                            proxy.mark_account_cooldown(account['email'], 120)
+                        err_msg = 'Upstream stream error'
+                        if resp.status_code == 429 or resp.status_code >= 500:
+                            last_err = err_msg
+                            break
+                        yield f"data: {json.dumps({'error': {'message': err_msg, 'type': 'upstream_error'}})}\n\n"
+                        return
+
+                    buffer = ''
+                    for chunk in resp.iter_text():
+                        buffer += chunk
+                        lines = buffer.split('\n')
+                        buffer = lines.pop()
+                        for line in lines:
+                            stripped = line.strip()
+                            if not stripped.startswith('data: '): continue
+                            data_str = stripped[6:]
+                            if data_str == '[DONE]': continue
+                            try:
+                                gemini_chunk = json.loads(data_str)
+                                candidates = gemini_chunk.get('candidates', [])
+                                if not candidates: continue
+                                text = ''.join(p.get('text', '') for p in candidates[0].get('content', {}).get('parts', []) if 'text' in p and not p.get('thought'))
+                                if not text: continue
+                                openai_chunk = {
+                                    'id': completion_id, 'object': 'chat.completion.chunk', 'created': int(time.time()),
+                                    'model': model_name, 'choices': [{'index': 0, 'delta': {'content': text}, 'finish_reason': None}]
+                                }
+                                yield f"data: {json.dumps(openai_chunk)}\n\n"
+                            except: continue
+                    final_chunk = {
+                        'id': completion_id, 'object': 'chat.completion.chunk', 'created': int(time.time()),
+                        'model': model_name, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}]
+                    }
+                    yield f"data: {json.dumps(final_chunk)}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return  # Success, don't try next endpoint
+            except Exception as e:
+                last_err = str(e)
+                continue
+        # All endpoints failed
+        yield f"data: {json.dumps({'error': {'message': f'All endpoints failed: {last_err}', 'type': 'upstream_error'}})}\n\n"
 
     return Response(stream_with_context(generate()), content_type='text/event-stream')
+
+@app.route('/d-api/terminal-command/<email>')
+@login_required
+def get_terminal_command(email):
+    accounts = core.get_accounts()
+    target = next((a for a in accounts if a['email'] == email), None)
+    if not target:
+        return jsonify({'success': False, 'error': 'Account not found'}), 404
+        
+    rt = target.get('_refresh_token')
+    if not rt:
+        return jsonify({'success': False, 'error': 'Refresh token not found'}), 400
+        
+    command = core.get_terminal_login_command(email, rt)
+    return jsonify({'success': True, 'command': command})
+
+@app.route('/d-api/accounts/<email>/status', methods=['POST'])
+@login_required
+def update_account_status(email):
+    data = request.json
+    status = data.get('status')
+    if not status or status not in ['active', 'rejected', 'logged_out']:
+        return jsonify({'success': False, 'message': 'Invalid status'}), 400
+        
+    conn = core._get_conn()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE accounts SET status = ? WHERE email = ?", (status, email))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': f'Status updated to {status}'})
 
 @app.route('/d-api/models/fetch', methods=['POST'])
 @login_required

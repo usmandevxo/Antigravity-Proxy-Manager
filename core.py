@@ -18,6 +18,8 @@ import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 import httpx
+import base64
+import struct
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 # --- Paths ---
@@ -56,11 +58,20 @@ _tmp_oauth = _tmp_config.get('oauth', {})
 CLIENT_ID = _tmp_oauth.get('client_id', 'your_google_client_id_here')
 CLIENT_SECRET = _tmp_oauth.get('client_secret', 'your_google_client_secret_here')
 OAUTH_PORT = 5005
-USER_AGENT = 'antigravity/1.22.2 linux/amd64'
+URL_AUTH = 'https://accounts.google.com/o/oauth2/v2/auth'
 URL_TOKEN = 'https://oauth2.googleapis.com/token'
-URL_QUOTA = 'https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels'
-URL_LOAD_PROJECT = 'https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist'
 URL_USERINFO = 'https://www.googleapis.com/oauth2/v3/userinfo'
+URL_QUOTA = 'https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels'
+URL_QUOTA_FALLBACK = 'https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels'
+URL_LOAD_PROJECT = 'https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist'
+URL_LOAD_PROJECT_FALLBACK = 'https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist'
+
+USER_AGENT = 'antigravity/1.11.3 Linux/x86_64'
+OAUTH_SCOPES = [
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'openid',
+]
 
 
 # --- Encryption (local key, no OS keyring dependency) ---
@@ -255,7 +266,7 @@ def refresh_access_token(refresh_token: str) -> dict | None:
 
 
 def fetch_live_quota(access_token: str) -> dict:
-    """Fetch live quota data from Google API."""
+    """Fetch live quota data from Google API with endpoint failover."""
     try:
         headers = {
             'Authorization': f'Bearer {access_token}',
@@ -263,33 +274,53 @@ def fetch_live_quota(access_token: str) -> dict:
             'Content-Type': 'application/json',
         }
 
-        # Get project ID and credits first
+        # Get project ID and subscription tier first
         project_id = None
+        subscription_tier = None
         credits_info = None
         kwargs = get_httpx_kwargs()
         kwargs['timeout'] = 30.0
-        try:
-            resp = httpx.post(
-                URL_LOAD_PROJECT,
-                json={'metadata': {'ideType': 'ANTIGRAVITY'}},
-                headers=headers,
-                **kwargs,
-            )
-            if resp.is_success:
-                data = resp.json()
-                project_id = data.get('cloudaicompanionProject')
-                
-                # Extract credits from paidTier, currentTier, or allowedTiers
-                tiers_to_check = []
-                if 'paidTier' in data: tiers_to_check.append(data['paidTier'])
-                if 'currentTier' in data: tiers_to_check.append(data['currentTier'])
-                if 'allowedTiers' in data and isinstance(data['allowedTiers'], list):
-                    tiers_to_check.extend(data['allowedTiers'])
-                
-                for tier in tiers_to_check:
-                    if tier and 'availableCredits' in tier:
-                        avail = tier['availableCredits']
-                        if avail and len(avail) > 0:
+        
+        # Try primary then fallback for loadCodeAssist
+        for url in [URL_LOAD_PROJECT, URL_LOAD_PROJECT_FALLBACK]:
+            try:
+                resp = httpx.post(
+                    url,
+                    json={'metadata': {'ideType': 'ANTIGRAVITY'}},
+                    headers=headers,
+                    **kwargs,
+                )
+                if resp.is_success:
+                    data = resp.json()
+                    project_id = data.get('cloudaicompanionProject')
+                    
+                    # Resolve subscription tier (same logic as manager)
+                    paid_tier = data.get('paidTier', {})
+                    current_tier = data.get('currentTier', {})
+                    allowed_tiers = data.get('allowedTiers', [])
+                    
+                    if paid_tier and paid_tier.get('name'):
+                        subscription_tier = paid_tier['name']
+                    elif paid_tier and paid_tier.get('id'):
+                        subscription_tier = paid_tier['id']
+                    elif current_tier and current_tier.get('name'):
+                        subscription_tier = current_tier['name']
+                    elif current_tier and current_tier.get('id'):
+                        subscription_tier = current_tier['id']
+                    elif allowed_tiers:
+                        preferred = next((t for t in allowed_tiers if t.get('is_default')), allowed_tiers[0])
+                        subscription_tier = preferred.get('name') or preferred.get('id')
+                    
+                    # Extract credits from paidTier.availableCredits
+                    tiers_to_check = []
+                    if paid_tier: tiers_to_check.append(paid_tier)
+                    if current_tier: tiers_to_check.append(current_tier)
+                    if isinstance(allowed_tiers, list): tiers_to_check.extend(allowed_tiers)
+                    
+                    for tier in tiers_to_check:
+                        if not tier: continue
+                        avail = tier.get('availableCredits')
+                        if avail and isinstance(avail, list) and len(avail) > 0:
                             amount = avail[0].get('creditAmount')
                             if amount is not None:
                                 try:
@@ -297,35 +328,64 @@ def fetch_live_quota(access_token: str) -> dict:
                                     break
                                 except (ValueError, TypeError):
                                     pass
-                    if credits_info is not None: break
-        except Exception:
-            pass
+                        if credits_info is not None: break
+                    break  # Success, don't try fallback
+            except Exception:
+                continue
 
-        # Fetch quota
+        # Try fetchCredits endpoint (may return 404 for some accounts)
+        if credits_info is None:
+            for url in ['https://cloudcode-pa.googleapis.com/v1internal:fetchCredits',
+                        'https://daily-cloudcode-pa.googleapis.com/v1internal:fetchCredits']:
+                try:
+                    resp = httpx.post(url, json={}, headers=headers, **kwargs)
+                    if resp.is_success:
+                        data = resp.json()
+                        cred_val = data.get('credits') or data.get('remainingCredits')
+                        if cred_val is not None:
+                            try:
+                                credits_info = int(float(cred_val))
+                            except (ValueError, TypeError):
+                                pass
+                        break
+                except Exception:
+                    continue
+
+        # Fetch quota with failover
         payload = {}
         if project_id:
             payload['project'] = project_id
 
-        resp = httpx.post(URL_QUOTA, json=payload, headers=headers, **kwargs)
-        resp.raise_for_status()
+        last_error = None
+        for url in [URL_QUOTA, URL_QUOTA_FALLBACK]:
+            try:
+                resp = httpx.post(url, json=payload, headers=headers, **kwargs)
+                resp.raise_for_status()
 
-        raw = resp.json()
-        result = {
-            'models': {}, 
-            'project_id': project_id or '',
-            'credits': credits_info
-        }
-        for name, info in raw.get('models', {}).items():
-            q_info = info.get('quotaInfo')
-            if q_info:
-                fraction = q_info.get('remainingFraction', 0)
-                result['models'][name] = {
-                    'percentage': int(fraction * 100),
-                    'resetTime': q_info.get('resetTime', ''),
+                raw = resp.json()
+                result = {
+                    'models': {}, 
+                    'project_id': project_id or '',
+                    'credits': credits_info,
+                    'subscription_tier': subscription_tier or 'free-tier',
                 }
-        return result
+                for name, info in raw.get('models', {}).items():
+                    q_info = info.get('quotaInfo')
+                    if q_info:
+                        fraction = q_info.get('remainingFraction', 0)
+                        result['models'][name] = {
+                            'percentage': int(fraction * 100),
+                            'resetTime': q_info.get('resetTime', ''),
+                        }
+                return result
+            except Exception as e:
+                last_error = e
+                continue
+        
+        # If all endpoints failed
+        return {'models': {}, 'project_id': '', 'credits': None, 'subscription_tier': subscription_tier or 'unknown'}
     except Exception:
-        return {'models': {}, 'project_id': '', 'credits': None}
+        return {'models': {}, 'project_id': '', 'credits': None, 'subscription_tier': 'unknown'}
 
 
 def refresh_account_quota(email: str) -> str:
@@ -383,24 +443,27 @@ def fetch_user_info(access_token: str) -> dict | None:
 
 
 def fetch_project_id(access_token: str) -> str:
-    """Fetch the project ID for the account."""
-    try:
-        kwargs = get_httpx_kwargs()
-        kwargs['timeout'] = 30.0
-        resp = httpx.post(
-            URL_LOAD_PROJECT,
-            json={'metadata': {'ideType': 'ANTIGRAVITY'}},
-            headers={
-                'Authorization': f'Bearer {access_token}',
-                'User-Agent': USER_AGENT,
-                'Content-Type': 'application/json',
-            },
-            **kwargs,
-        )
-        if resp.is_success:
-            return resp.json().get('cloudaicompanionProject', '')
-    except Exception:
-        pass
+    """Fetch the project ID for the account with endpoint failover."""
+    kwargs = get_httpx_kwargs()
+    kwargs['timeout'] = 30.0
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'User-Agent': USER_AGENT,
+        'Content-Type': 'application/json',
+    }
+    
+    for url in [URL_LOAD_PROJECT, URL_LOAD_PROJECT_FALLBACK]:
+        try:
+            resp = httpx.post(
+                url,
+                json={'metadata': {'ideType': 'ANTIGRAVITY'}},
+                headers=headers,
+                **kwargs,
+            )
+            if resp.is_success:
+                return resp.json().get('cloudaicompanionProject', '')
+        except Exception:
+            continue
     return ''
 
 
@@ -836,14 +899,13 @@ class _OAuthCallbackHandler(BaseHTTPRequestHandler):
 def _test_gemini_connection(access_token: str, project_id: str) -> tuple[bool, str]:
     """Test the Gemini connection by sending a basic request using the internal API format."""
     import uuid as _uuid
-    url = 'https://cloudcode-pa.googleapis.com/v1internal:generateContent'
+    
     headers = {
         'Authorization': f'Bearer {access_token}',
         'Content-Type': 'application/json',
         'User-Agent': 'antigravity/1.11.3 Linux/x86_64'
     }
 
-    # Use the same internal request format that proxy.py uses
     internal_body = {
         'requestId': str(_uuid.uuid4()),
         'request': {
@@ -857,20 +919,32 @@ def _test_gemini_connection(access_token: str, project_id: str) -> tuple[bool, s
     if project_id:
         internal_body['project'] = project_id
 
-    try:
-        kwargs = get_httpx_kwargs()
-        kwargs['timeout'] = 15.0
-        resp = httpx.post(url, json=internal_body, headers=headers, **kwargs)
-        if resp.status_code == 200:
-            return True, "Connection successful"
-        else:
-            try:
-                err = resp.json().get('error', {}).get('message', resp.text)
-            except Exception:
-                err = resp.text
-            return False, f"HTTP {resp.status_code}: {err}"
-    except Exception as e:
-        return False, str(e)
+    # Try both endpoints with failover
+    base_urls = [
+        'https://daily-cloudcode-pa.googleapis.com/v1internal',
+        'https://cloudcode-pa.googleapis.com/v1internal',
+    ]
+    
+    for base_url in base_urls:
+        url = f'{base_url}:generateContent'
+        try:
+            kwargs = get_httpx_kwargs()
+            kwargs['timeout'] = 15.0
+            resp = httpx.post(url, json=internal_body, headers=headers, **kwargs)
+            if resp.status_code == 200:
+                return True, "Connection successful"
+            else:
+                if resp.status_code == 429 or resp.status_code >= 500:
+                    continue  # Try next endpoint
+                try:
+                    err = resp.json().get('error', {}).get('message', resp.text)
+                except Exception:
+                    err = resp.text
+                return False, f"HTTP {resp.status_code}: {err}"
+        except Exception as e:
+            continue  # Try next endpoint
+    
+    return False, "All endpoints failed"
 
 def _exchange_code_for_tokens(code: str, redirect_uri: str) -> dict | None:
     """Exchange an authorization code for access + refresh tokens."""
@@ -1089,4 +1163,194 @@ def get_available_models(force=False) -> list:
         return config['available_models']
         
     return config.get('available_models', [])
+
+
+# --- Protobuf & IDE Injection ---
+
+def _encode_varint(value: int) -> bytes:
+    buf = []
+    val = value
+    while val >= 128:
+        buf.append((val & 0x7F) | 0x80)
+        val >>= 7
+    buf.append(val)
+    return bytes(buf)
+
+def _create_string_field(field_num: int, value: str) -> bytes:
+    tag = (field_num << 3) | 2
+    tag_bytes = _encode_varint(tag)
+    value_bytes = value.encode('utf-8')
+    len_bytes = _encode_varint(len(value_bytes))
+    return tag_bytes + len_bytes + value_bytes
+
+def _create_len_delim_field(field_num: int, data: bytes) -> bytes:
+    tag = (field_num << 3) | 2
+    tag_bytes = _encode_varint(tag)
+    len_bytes = _encode_varint(len(data))
+    return tag_bytes + len_bytes + data
+
+def _create_timestamp_field(field_num: int, seconds: int) -> bytes:
+    inner_tag = (1 << 3) | 0
+    inner_tag_bytes = _encode_varint(inner_tag)
+    seconds_bytes = _encode_varint(seconds)
+    inner_msg = inner_tag_bytes + seconds_bytes
+    return _create_len_delim_field(field_num, inner_msg)
+
+def create_unified_oauth_token(access_token: str, refresh_token: str, expiry_ms: int) -> str:
+    import base64
+    # expiry_ms is in milliseconds, convert to seconds for Timestamp
+    expiry_secs = expiry_ms // 1000
+    
+    # 1. create_oauth_info
+    field1 = _create_string_field(1, access_token)
+    field2 = _create_string_field(2, "Bearer")
+    field3 = _create_string_field(3, refresh_token)
+    field4 = _create_timestamp_field(4, expiry_secs)
+    oauth_info = field1 + field2 + field3 + field4
+    
+    # 2. oauth_info_b64
+    oauth_info_b64 = base64.b64encode(oauth_info).decode('utf-8')
+    
+    # 3. inner structure
+    inner1 = _create_string_field(1, 'oauthTokenInfoSentinelKey')
+    inner2_field1 = _create_string_field(1, oauth_info_b64)
+    inner_field2 = _create_len_delim_field(2, inner2_field1)
+    
+    inner = inner1 + inner_field2
+    
+    # 4. outer structure
+    outer = _create_len_delim_field(1, inner)
+    
+    return base64.b64encode(outer).decode('utf-8')
+
+def get_antigravity_db_path() -> str | None:
+    """Find the Antigravity IDE state database."""
+    home = os.path.expanduser('~')
+    appdata = os.getenv('APPDATA') # For Windows
+    
+    candidates = []
+    if sys.platform == 'linux':
+        candidates = [
+            os.path.join(home, '.config', 'Antigravity', 'User', 'globalStorage', 'state.vscdb'),
+            os.path.join(home, '.config', 'Antigravity IDE', 'User', 'globalStorage', 'state.vscdb'),
+            os.path.join(home, '.config', 'antigravity', 'User', 'globalStorage', 'state.vscdb'),
+        ]
+    elif sys.platform == 'win32' and appdata:
+        candidates = [
+            os.path.join(appdata, 'Antigravity', 'User', 'globalStorage', 'state.vscdb'),
+            os.path.join(appdata, 'Antigravity IDE', 'User', 'globalStorage', 'state.vscdb'),
+        ]
+    
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return None
+
+def inject_token_to_ide(email: str, refresh_token: str) -> bool:
+    """Inject the given token into the Antigravity IDE database."""
+    db_path = get_antigravity_db_path()
+    if not db_path:
+        return False
+        
+    try:
+        # 1. Get tokens
+        tokens = refresh_access_token(refresh_token)
+        if not tokens:
+            return False
+            
+        access_token = tokens['access_token']
+        # Use expiry from response if available, else default to 1 hour
+        expiry_ms = int(time.time() * 1000) + (tokens.get('expires_in', 3600) * 1000)
+        
+        # 2. Create blob
+        blob = create_unified_oauth_token(access_token, refresh_token, expiry_ms)
+        
+        # 3. Inject into SQLite
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Ensure ItemTable exists
+        cursor.execute("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT PRIMARY KEY, value TEXT)")
+        
+        # We need to use the key used by Antigravity IDE
+        key = 'antigravityUnifiedStateSync.oauthToken'
+        
+        cursor.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (key, blob))
+        
+        # Also set onboarding as done
+        cursor.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", ('antigravityOnboarding', 'true'))
+        
+        # Set auth status for UI
+        auth_status = json.dumps({
+            "email": email,
+            "name": email.split('@')[0],
+            "apiKey": access_token
+        })
+        cursor.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", ('antigravityAuthStatus', auth_status))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Injection failed: {e}")
+        return False
+
+def get_terminal_login_command(email: str, refresh_token: str) -> str:
+    """Generate a standalone Python one-liner to login the IDE without agpm CLI."""
+    # 1. Get current tokens to include in the script
+    tokens = refresh_access_token(refresh_token)
+    if not tokens:
+        return f"echo 'Error: Failed to refresh token for {email}'"
+        
+    at = tokens['access_token']
+    ex = int(time.time() * 1000) + (tokens.get('expires_in', 3600) * 1000)
+    
+    # 3. Base64 encode the script to avoid shell escaping issues
+    je = json.dumps(email)
+    ja = json.dumps(at)
+    jr = json.dumps(refresh_token)
+    
+    script = f"""
+import os, sqlite3, json, base64
+
+def v(n):
+    b = bytearray()
+    while n >= 128: b.append((n & 127) | 128); n >>= 7
+    b.append(n); return b
+
+def f(n, d):
+    if isinstance(d, str): d = d.encode()
+    return v((n << 3) | 2) + v(len(d)) + d
+
+def t(n, s):
+    return f(n, v(8) + v(int(s)))
+
+def run(e, a, r, x):
+    oi = f(1, a) + f(2, "Bearer") + f(3, r) + t(4, x/1000)
+    oib = base64.b64encode(oi).decode()
+    inner = f(1, "oauthTokenInfoSentinelKey") + f(2, f(1, oib))
+    blob = base64.b64encode(f(1, inner)).decode()
+    h = os.path.expanduser('~')
+    db = None
+    for p in [".config/Antigravity", ".config/Antigravity IDE", "AppData/Roaming/Antigravity", "AppData/Roaming/Antigravity IDE"]:
+        for s in ["User/globalStorage/state.vscdb", "state.vscdb"]:
+            fp = os.path.join(h, p, s)
+            if os.path.exists(fp): db = fp; break
+        if db: break
+    if not db: print("Error: Antigravity IDE database not found."); return
+    c = sqlite3.connect(db)
+    cur = c.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT PRIMARY KEY, value TEXT)")
+    cur.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?,?)", ("antigravityUnifiedStateSync.oauthToken", blob))
+    cur.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?,?)", ("antigravityOnboarding", "true"))
+    cur.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?,?)", ("antigravityAuthStatus", json.dumps({{"email":e,"name":e.split('@')[0],"apiKey":a}})))
+    c.commit(); c.close()
+    print(f"Successfully logged into Antigravity IDE as {{e}}!")
+
+run({je}, {ja}, {jr}, {ex})
+"""
+    encoded_script = base64.b64encode(script.encode('utf-8')).decode('utf-8')
+    
+    return f"python3 -c \"import base64; exec(base64.b64decode('{encoded_script}'))\""
+
 

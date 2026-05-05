@@ -430,7 +430,7 @@
                 <button class="btn btn--ghost btn--icon btn--sm" id="btn-close-quota-modal"><i
                         data-lucide="x"></i></button>
             </div>
-            
+
             <div style="max-height: 400px; overflow-y: auto;">
                 <table class="data-table">
                     <thead>
@@ -445,8 +445,45 @@
                     </tbody>
                 </table>
             </div>
-            
-            <button class="btn btn--secondary" id="btn-close-quota-modal-bottom" style="width: 100%; margin-top: var(--space-5);">Close</button>
+
+            <button class="btn btn--secondary" id="btn-close-quota-modal-bottom"
+                style="width: 100%; margin-top: var(--space-5);">Close</button>
+        </div>
+    </div>
+
+    <!-- Terminal Login Modal -->
+    <div class="ds-modal-overlay" id="modal-terminal"
+        style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+        <div class="card" style="padding: var(--space-6); width: 600px; max-width: 95vw;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+                <h3 class="ds-subsection__title">Terminal Login</h3>
+                <button class="btn btn--ghost btn--icon btn--sm" id="btn-close-terminal-modal-top"><i
+                        data-lucide="x"></i></button>
+            </div>
+
+            <p class="text-dim" style="margin-bottom: var(--space-4);">Copy and paste this command into your terminal to
+                authenticate your Antigravity IDE.</p>
+
+            <div
+                style="background: var(--color-surface); padding: var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--color-border); position: relative; margin-bottom: var(--space-4);">
+                <code id="terminal-command-code"
+                    style="display: block; word-break: break-all; color: var(--color-text); font-family: 'Ubuntu Mono', monospace; font-size: 13px; padding-right: 32px;">Loading...</code>
+                <button class="btn btn--ghost btn--icon btn--sm" id="btn-copy-terminal"
+                    style="position: absolute; top: 8px; right: 8px;">
+                    <i data-lucide="copy" style="width:14px;height:14px;"></i>
+                </button>
+            </div>
+
+            <p
+                style="font-size: 12px; color: var(--color-text-secondary); display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="info" style="width:14px;height:14px;"></i>
+                This command is a standalone Python script that directly authenticates your Antigravity IDE. No CLI
+                installation is required.
+            </p>
+
+            <button class="btn btn--primary" id="btn-close-terminal-modal"
+                style="width: 100%; margin-top: var(--space-5);">Done</button>
         </div>
     </div>
 

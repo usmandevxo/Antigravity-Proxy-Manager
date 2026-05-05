@@ -324,6 +324,10 @@ def main():
     ref_parser = acc_sub.add_parser("refresh", help="Refresh account quota")
     ref_parser.add_argument("--email", help="Specific email to refresh (optional)")
 
+    log_parser = acc_sub.add_parser("login", help="Login Antigravity IDE with an account")
+    log_parser.add_argument("--email", help="Email of the account")
+    log_parser.add_argument("--token", help="Refresh token of the account")
+
     # Proxy command
     proxy_parser = subparsers.add_parser("proxy", help="Manage proxy server")
     proxy_parser.add_argument("action", choices=["start", "stop"], help="Action to perform")
@@ -350,6 +354,17 @@ def main():
             set_active(args.email)
         elif args.acc_command == "refresh":
             refresh_accounts(args.email)
+        elif args.acc_command == "login":
+            if args.token and args.email:
+                with console.status("[bold green]Injecting token into Antigravity IDE..."):
+                    success = core.inject_token_to_ide(args.email, args.token)
+                if success:
+                    rprint(f"[bold green]Successfully logged into Antigravity IDE as {args.email}![/bold green]")
+                    rprint("[dim]Please restart your Antigravity IDE to apply changes.[/dim]")
+                else:
+                    rprint("[bold red]Failed to inject token. Make sure Antigravity IDE is installed and its database is accessible.[/bold red]")
+            else:
+                rprint("[bold red]Error: Both --email and --token are required.[/bold red]")
         else:
             acc_parser.print_help()
     elif args.command == "proxy":

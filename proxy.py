@@ -26,25 +26,26 @@ from core import (
 
 # --- API Constants ---
 
-INTERNAL_BASE_URL = 'https://cloudcode-pa.googleapis.com/v1internal'
+INTERNAL_BASE_URLS = [
+    'https://daily-cloudcode-pa.googleapis.com/v1internal',  # Primary - separate quota bucket
+    'https://cloudcode-pa.googleapis.com/v1internal',        # Fallback
+]
 USER_AGENT = 'antigravity/1.11.3 Linux/x86_64'
 
 # Model alias mapping (same as the Electron app)
 MODEL_MAPPING = {
-    # Direct
+    # Direct (keep as-is)
     'gemini-3-flash': 'gemini-3-flash',
     'gemini-3.1-pro-high': 'gemini-3.1-pro-high',
     'gemini-3.1-pro-low': 'gemini-3.1-pro-low',
-    'claude-sonnet-4-6-thinking': 'claude-sonnet-4-6-thinking',
+    'claude-sonnet-4-6-thinking': 'claude-sonnet-4-6',
     'claude-opus-4-6-thinking': 'claude-opus-4-6-thinking',
 
     # Gemini aliases
-    'gemini-2.5-flash': 'gemini-3-flash',
-    'gemini-2.5-flash-lite': 'gemini-3-flash',
-    'gemini-2.5-pro': 'gemini-3.1-pro-high',
-    'gemini-2.0-flash': 'gemini-3-flash',
-    'gemini-3.1-pro': 'gemini-3.1-pro-high',
-    'gemini-3.0-pro': 'gemini-3.1-pro-high',
+    'gemini-1.5-flash': 'gemini-3-flash',
+    'gemini-1.5-pro': 'gemini-3.1-pro-high',
+    'gemini-2.0-flash': 'gemini-2.5-flash',
+    'gemini-2.0-pro': 'gemini-2.5-pro',
 
     # Claude aliases
     'claude-sonnet-4': 'claude-sonnet-4-6-thinking',
@@ -72,20 +73,30 @@ SUPPORTED_MODELS = [
     'claude-opus-4-6-thinking',
 ]
 
-# --- Token Rotation ---
+# --- Token Rotation & Cooldown ---
 
 _account_cycle = None
 _cycle_lock = threading.Lock()
+_cooldowns = {}  # email -> timestamp when cooldown ends
 
 
 def _build_account_cycle():
-    """Build/rebuild the round-robin account cycle from DB."""
+    """Build/rebuild the round-robin account cycle from DB, skipping those in cooldown."""
     global _account_cycle
     accounts = get_accounts()
-    active = [a for a in accounts if a.get('status') == 'active']
+    now = time.time()
+    
+    # Filter active accounts that are not in cooldown
+    active = [a for a in accounts if a.get('status') == 'active' and _cooldowns.get(a['email'], 0) < now]
+    
+    if not active:
+        # If ALL active accounts are in cooldown, just use all active ones as fallback
+        active = [a for a in accounts if a.get('status') == 'active']
+        
     if not active:
         _account_cycle = None
         return
+        
     _account_cycle = itertools.cycle(active)
 
 
@@ -98,9 +109,23 @@ def _get_next_account():
         if _account_cycle is None:
             return None
         try:
-            return next(_account_cycle)
+            # Try a few times to get a non-cooldown account from the cycle
+            for _ in range(10):
+                account = next(_account_cycle)
+                if _cooldowns.get(account['email'], 0) < time.time():
+                    return account
+            return account # fallback
         except StopIteration:
             return None
+
+
+def mark_account_cooldown(email: str, seconds: int = 60):
+    """Mark an account as being in cooldown (e.g. after a 429)."""
+    global _account_cycle
+    _cooldowns[email] = time.time() + seconds
+    # Rebuild cycle to reflect the new cooldown state
+    with _cycle_lock:
+        _build_account_cycle()
 
 
 def _get_valid_access_token(account: dict) -> str | None:
@@ -212,8 +237,8 @@ def convert_openai_to_gemini_internal(body: dict, target_model: str, project_id:
         'userAgent': USER_AGENT,
         'requestType': 'generate-content',
     }
-    if project_id:
-        internal_req['project'] = project_id
+    # NOTE: We intentionally DON'T send the project field here as it can trigger 
+    # strict quota limits on free accounts. The internal API handles this automatically.
     
     return internal_req
 
@@ -370,156 +395,182 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self._send_json(last_error['status'], last_error['body'])
 
     def _handle_non_streaming(self, gemini_body: dict, access_token: str, model_name: str, account: dict) -> tuple[bool, dict | None]:
-        """Non-streaming: call generateContent, return full response. Returns (success, error_data)."""
-        url = f'{INTERNAL_BASE_URL}:generateContent'
-        try:
-            kwargs = get_httpx_kwargs()
-            kwargs['timeout'] = 120.0
-            resp = httpx.post(
-                url,
-                json=gemini_body,
-                headers={
-                    'Authorization': f'Bearer {access_token}',
-                    'Content-Type': 'application/json',
-                    'User-Agent': USER_AGENT,
-                },
-                **kwargs,
-            )
+        """Non-streaming: call generateContent with endpoint failover. Returns (success, error_data)."""
+        last_err = None
+        
+        for base_url in INTERNAL_BASE_URLS:
+            url = f'{base_url}:generateContent'
+            try:
+                kwargs = get_httpx_kwargs()
+                kwargs['timeout'] = 120.0
+                resp = httpx.post(
+                    url,
+                    json=gemini_body,
+                    headers={
+                        'Authorization': f'Bearer {access_token}',
+                        'Content-Type': 'application/json',
+                        'User-Agent': USER_AGENT,
+                    },
+                    **kwargs,
+                )
 
-            if resp.status_code != 200:
-                error_text = resp.text[:500]
-                err = {
-                    'status': resp.status_code,
-                    'body': {
-                        'error': {
-                            'message': f'Upstream error ({account["email"]}): {error_text}',
-                            'type': 'upstream_error',
-                        }
-                    }
-                }
-                return False, err
-
-            gemini_resp = resp.json()
-            # Unwrap if nested in 'response' key
-            if 'response' in gemini_resp and 'candidates' not in gemini_resp:
-                gemini_resp = gemini_resp['response']
-
-            openai_resp = convert_gemini_to_openai(gemini_resp, model_name)
-            self._send_json(200, openai_resp)
-            return True, None
-
-        except Exception as e:
-            err = {'status': 502, 'body': {'error': {'message': f'Upstream request failed: {e}', 'type': 'upstream_error'}}}
-            return False, err
-
-    def _handle_streaming(self, gemini_body: dict, access_token: str, model_name: str, account: dict) -> tuple[bool, dict | None]:
-        """Streaming: call streamGenerateContent, convert to SSE OpenAI format. Returns (success, error_data)."""
-        url = f'{INTERNAL_BASE_URL}:streamGenerateContent?alt=sse'
-        try:
-            kwargs = get_httpx_kwargs()
-            kwargs['timeout'] = 120.0
-            with httpx.stream(
-                'POST',
-                url,
-                json=gemini_body,
-                headers={
-                    'Authorization': f'Bearer {access_token}',
-                    'Content-Type': 'application/json',
-                    'User-Agent': USER_AGENT,
-                },
-                **kwargs,
-            ) as resp:
                 if resp.status_code != 200:
-                    error_text = resp.read().decode()[:500]
+                    error_text = resp.text[:500]
+                    if resp.status_code == 429:
+                        mark_account_cooldown(account['email'], 120)
+                    
                     err = {
                         'status': resp.status_code,
                         'body': {
                             'error': {
-                                'message': f'Upstream stream error ({account["email"]}): {error_text}',
+                                'message': f'Upstream error ({account["email"]}): {error_text}',
                                 'type': 'upstream_error',
                             }
                         }
                     }
+                    # Failover on 429 or 5xx
+                    if resp.status_code == 429 or resp.status_code >= 500:
+                        last_err = err
+                        continue
                     return False, err
 
-                # Send SSE headers
-                self.send_response(200)
-                self.send_header('Content-Type', 'text/event-stream')
-                self.send_header('Cache-Control', 'no-cache')
-                self.send_header('Connection', 'keep-alive')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
+                gemini_resp = resp.json()
+                # Unwrap if nested in 'response' key
+                if 'response' in gemini_resp and 'candidates' not in gemini_resp:
+                    gemini_resp = gemini_resp['response']
 
-                completion_id = f'chatcmpl-{uuid.uuid4().hex[:12]}'
-                buffer = ''
-
-                for chunk in resp.iter_text():
-                    buffer += chunk
-                    lines = buffer.split('\n')
-                    buffer = lines.pop()
-
-                    for line in lines:
-                        stripped = line.strip()
-                        if not stripped.startswith('data: '):
-                            continue
-                        data_str = stripped[6:]
-                        if data_str == '[DONE]':
-                            continue
-
-                        try:
-                            gemini_chunk = json.loads(data_str)
-                            candidates = gemini_chunk.get('candidates', [])
-                            if not candidates:
-                                continue
-
-                            candidate = candidates[0]
-                            parts = candidate.get('content', {}).get('parts', [])
-                            text = ''.join(
-                                p.get('text', '') for p in parts
-                                if 'text' in p and not p.get('thought')
-                            )
-
-                            if not text:
-                                continue
-
-                            openai_chunk = {
-                                'id': completion_id,
-                                'object': 'chat.completion.chunk',
-                                'created': int(time.time()),
-                                'model': model_name,
-                                'choices': [{
-                                    'index': 0,
-                                    'delta': {'content': text},
-                                    'finish_reason': None,
-                                }],
-                            }
-                            sse_line = f'data: {json.dumps(openai_chunk)}\n\n'
-                            self.wfile.write(sse_line.encode())
-                            self.wfile.flush()
-                        except json.JSONDecodeError:
-                            continue
-
-                # Send final [DONE]
-                final_chunk = {
-                    'id': completion_id,
-                    'object': 'chat.completion.chunk',
-                    'created': int(time.time()),
-                    'model': model_name,
-                    'choices': [{
-                        'index': 0,
-                        'delta': {},
-                        'finish_reason': 'stop',
-                    }],
-                }
-                self.wfile.write(f'data: {json.dumps(final_chunk)}\n\n'.encode())
-                self.wfile.write(b'data: [DONE]\n\n')
-                self.wfile.flush()
-                
+                openai_resp = convert_gemini_to_openai(gemini_resp, model_name)
+                self._send_json(200, openai_resp)
                 return True, None
 
-        except Exception as e:
-            err = {'status': 502, 'body': {'error': {'message': f'Stream failed: {e}', 'type': 'upstream_error'}}}
-            return False, err
+            except Exception as e:
+                err = {'status': 502, 'body': {'error': {'message': f'Upstream request failed: {e}', 'type': 'upstream_error'}}}
+                last_err = err
+                continue  # Try next endpoint
+        
+        return False, last_err
+
+    def _handle_streaming(self, gemini_body: dict, access_token: str, model_name: str, account: dict) -> tuple[bool, dict | None]:
+        """Streaming: call streamGenerateContent with endpoint failover. Returns (success, error_data)."""
+        last_err = None
+        
+        for base_url in INTERNAL_BASE_URLS:
+            url = f'{base_url}:streamGenerateContent?alt=sse'
+            try:
+                kwargs = get_httpx_kwargs()
+                kwargs['timeout'] = 120.0
+                with httpx.stream(
+                    'POST',
+                    url,
+                    json=gemini_body,
+                    headers={
+                        'Authorization': f'Bearer {access_token}',
+                        'Content-Type': 'application/json',
+                        'User-Agent': USER_AGENT,
+                    },
+                    **kwargs,
+                ) as resp:
+                    if resp.status_code != 200:
+                        error_text = resp.read().decode()[:500]
+                        if resp.status_code == 429:
+                            mark_account_cooldown(account['email'], 120)
+                        
+                        err = {
+                            'status': resp.status_code,
+                            'body': {
+                                'error': {
+                                    'message': f'Upstream stream error ({account["email"]}): {error_text}',
+                                    'type': 'upstream_error',
+                                }
+                            }
+                        }
+                        # Failover on 429 or 5xx
+                        if resp.status_code == 429 or resp.status_code >= 500:
+                            last_err = err
+                            break  # Try next endpoint
+                        return False, err
+
+                    # Send SSE headers
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/event-stream')
+                    self.send_header('Cache-Control', 'no-cache')
+                    self.send_header('Connection', 'keep-alive')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+
+                    completion_id = f'chatcmpl-{uuid.uuid4().hex[:12]}'
+                    buffer = ''
+
+                    for chunk in resp.iter_text():
+                        buffer += chunk
+                        lines = buffer.split('\n')
+                        buffer = lines.pop()
+
+                        for line in lines:
+                            stripped = line.strip()
+                            if not stripped.startswith('data: '):
+                                continue
+                            data_str = stripped[6:]
+                            if data_str == '[DONE]':
+                                continue
+
+                            try:
+                                gemini_chunk = json.loads(data_str)
+                                candidates = gemini_chunk.get('candidates', [])
+                                if not candidates:
+                                    continue
+
+                                candidate = candidates[0]
+                                parts = candidate.get('content', {}).get('parts', [])
+                                text = ''.join(
+                                    p.get('text', '') for p in parts
+                                    if 'text' in p and not p.get('thought')
+                                )
+
+                                if not text:
+                                    continue
+
+                                openai_chunk = {
+                                    'id': completion_id,
+                                    'object': 'chat.completion.chunk',
+                                    'created': int(time.time()),
+                                    'model': model_name,
+                                    'choices': [{
+                                        'index': 0,
+                                        'delta': {'content': text},
+                                        'finish_reason': None,
+                                    }],
+                                }
+                                sse_line = f'data: {json.dumps(openai_chunk)}\n\n'
+                                self.wfile.write(sse_line.encode())
+                                self.wfile.flush()
+                            except json.JSONDecodeError:
+                                continue
+
+                    # Send final [DONE]
+                    final_chunk = {
+                        'id': completion_id,
+                        'object': 'chat.completion.chunk',
+                        'created': int(time.time()),
+                        'model': model_name,
+                        'choices': [{
+                            'index': 0,
+                            'delta': {},
+                            'finish_reason': 'stop',
+                        }],
+                    }
+                    self.wfile.write(f'data: {json.dumps(final_chunk)}\n\n'.encode())
+                    self.wfile.write(b'data: [DONE]\n\n')
+                    self.wfile.flush()
+                    
+                    return True, None
+
+            except Exception as e:
+                err = {'status': 502, 'body': {'error': {'message': f'Stream failed: {e}', 'type': 'upstream_error'}}}
+                last_err = err
+                continue  # Try next endpoint
+        
+        return False, last_err
 
     def _send_json(self, status: int, data: dict):
         body = json.dumps(data).encode()
